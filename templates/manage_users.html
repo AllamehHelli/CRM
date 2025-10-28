@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}مدیریت کاربران{% endblock %}
+
+{% block content %}
+<div class="grid">
+    <!-- ستون فرم ایجاد کاربر -->
+    <article>
+        <header><h3>ایجاد کاربر جدید</h3></header>
+        <form action="{{ url_for('add_user') }}" method="POST">
+            <label for="username">نام کاربری</label>
+            <input type="text" name="username" required>
+
+            <label for="password">رمز عبور</label>
+            <input type="password" name="password" required>
+
+            <label for="role">نقش کاربر</label>
+            <select name="role" required>
+                <option value="counselor">مشاور (Counselor)</option>
+                <option value="admin">مدیر (Admin)</option>
+            </select>
+
+            <button type="submit">ایجاد کاربر</button>
+        </form>
+    </article>
+
+    <!-- ستون لیست کاربران -->
+    <article>
+        <header><h3>لیست کاربران سیستم</h3></header>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>نام کاربری</th>
+                    <th>نقش</th>
+                    <th>عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.id }}</td>
+                    <td>{{ user.username }}</td>
+                    <td>{{ user.role }}</td>
+                    <td>
+                        <!-- دکمه حذف فقط برای کاربرانی غیر از کاربر فعلی نمایش داده می‌شود -->
+                        {% if user.id != current_user.id %}
+                        <form action="{{ url_for('delete_user', user_id=user.id) }}" method="POST" onsubmit="return confirm('آیا از حذف کاربر {{ user.username }} اطمینان دارید؟');" style="margin: 0;">
+                            <button type="submit" class="outline secondary" style="--padding-block: 0.25rem;">حذف</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </article>
+</div>
+{% endblock %}
