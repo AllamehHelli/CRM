@@ -1,20 +1,42 @@
 import os
 from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
+# --- ابزارهای جدید برای مدیریت کاربران ---
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+# یک کلید مخفی برای امن کردن نشست‌های کاربری لازم است
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a-very-secret-key-that-should-be-changed')
 db_url = os.environ.get("DATABASE_URL")
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url.replace("postgres://", "postgresql://")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
+# --- راه‌اندازی مدیر ورود ---
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login' # اگر کاربر لاگین نکرده بود، به این صفحه هدایت شود
+
+# --- مدل جدید برای کاربران ---
+# UserMixin قابلیت‌های پیش‌فرض Flask-Login را به مدل ما اضافه می‌کند
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password_hash = db.Column(db.String(128))
+    role = db.Column(db.String(20), default='counselor') # نقش: counselor, operator, admin
+
+    def set_password(self, password):
+        # هرگز رمز عبور را به صورت متن ساده ذخیره نمی‌کنیم!
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
 class Department(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
     tickets = db.relationship('Ticket', backref='department', lazy=True)
-
-    def __repr__(self):
-        return f"<Department {self.name}>"
 
 class Ticket(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -23,10 +45,15 @@ class Ticket(db.Model):
     description = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(20), default='New')
     department_id = db.Column(db.Integer, db.ForeignKey('department.id'), nullable=False)
+    # --- ستون جدید برای اتصال تیکت به کاربری که آن را ساخته ---
+    # creator_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
-    def __repr__(self):
-        return f"<Ticket {self.id}: {self.title}>"
+# این تابع به Flask-Login کمک می‌کند تا کاربر فعلی را پیدا کند
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
+# --- مسیرها (فعلاً بدون تغییر زیاد) ---
 @app.route('/')
 def index():
     tickets = Ticket.query.order_by(Ticket.id.desc()).all()
@@ -35,17 +62,12 @@ def index():
 
 @app.route('/create', methods=['POST'])
 def create():
+    # ... (در آینده این بخش را تغییر می‌دهیم تا سازنده تیکت را ثبت کند)
     student_code = request.form['student_code']
     title = request.form['title']
     description = request.form['description']
     department_id = request.form['department_id']
-    
-    new_ticket = Ticket(
-        student_code=student_code,
-        title=title,
-        description=description,
-        department_id=department_id
-    )
+    new_ticket = Ticket(student_code=student_code, title=title, description=description, department_id=department_id)
     db.session.add(new_ticket)
     db.session.commit()
     return redirect(url_for('index'))
@@ -63,28 +85,14 @@ def update_status(ticket_id):
     db.session.commit()
     return redirect(url_for('ticket_detail', ticket_id=ticket_id))
 
-# --- مسیر جدید برای حذف تیکت ---
 @app.route('/ticket/<int:ticket_id>/delete', methods=['POST'])
 def delete_ticket(ticket_id):
-    # ۱. تیکت مورد نظر را پیدا می‌کنیم
     ticket_to_delete = Ticket.query.get_or_404(ticket_id)
-    # ۲. دستور حذف را اجرا می‌کنیم
     db.session.delete(ticket_to_delete)
-    # ۳. تغییرات را در پایگاه داده ذخیره می‌کنیم
     db.session.commit()
-    # ۴. کاربر را به صفحه اصلی (لیست تیکت‌ها) بازمی‌گردانیم
     return redirect(url_for('index'))
-
 
 def create_default_departments():
     default_deps = ['کتابخوان', 'بازارهوشمند', 'آموزش', 'آزمون‌ها', 'عمومی']
     for dep_name in default_deps:
-        existing_dep = Department.query.filter_by(name=dep_name).first()
-        if not existing_dep:
-            new_dep = Department(name=dep_name)
-            db.session.add(new_dep)
-    db.session.commit()
-
-with app.app_context():
-    db.create_all()
-    create_default_departments()
+        if not Department.query.filter_by
