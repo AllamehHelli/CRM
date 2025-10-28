@@ -3,35 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- عنوان صفحه از صفحات فرزند گرفته می‌شود -->
     <title>{% block title %}سامانه CRM علامه حلی{% endblock %}</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <style>
         body { padding-top: 5rem; padding-bottom: 5rem; }
-        .navbar {
-            position: fixed;
-            top: 0;
-            right: 0;
-            left: 0;
-            z-index: 100;
-            background-color: var(--card-background-color);
-            border-bottom: var(--card-border);
-            padding: 0.5rem 0;
-        }
+        .navbar { position: fixed; top: 0; right: 0; left: 0; z-index: 100; background-color: var(--card-background-color); border-bottom: var(--card-border); padding: 0.5rem 0; }
+        .flash-message { margin-bottom: 1rem; padding: 1rem; border-radius: var(--border-radius); color: var(--contrast); }
+        .flash-message.danger { background-color: var(--form-element-invalid-background-color); border: 1px solid var(--form-element-invalid-border-color); }
+        .flash-message.info, .flash-message.success { background-color: var(--code-background-color); border: var(--card-border); color: var(--color);}
     </style>
-    <!-- بلاک برای استایل‌های اضافی صفحات فرزند -->
     {% block head_extra %}{% endblock %}
 </head>
 <body>
-    <!-- نوار ناوبری (هدر) ثابت -->
     <header class="navbar">
         <div class="container">
             <nav>
                 <ul>
-                    <li><strong>سامانه تیکت علامه حلی</strong></li>
+                    <li><a href="{{ url_for('index') }}"><strong>داشبورد اصلی</strong></a></li>
+                    <!-- لینک مدیریت کاربران فقط برای ادمین نمایش داده می‌شود -->
+                    {% if current_user.is_authenticated and current_user.role == 'admin' %}
+                        <li><a href="{{ url_for('manage_users') }}">مدیریت کاربران</a></li>
+                    {% endif %}
                 </ul>
                 <ul>
-                    <!-- اگر کاربر وارد شده باشد، نام و دکمه خروج را نمایش بده -->
                     {% if current_user.is_authenticated %}
                         <li>خوش آمدید، {{ current_user.username }}</li>
                         <li><a href="{{ url_for('logout') }}" role="button" class="secondary outline">خروج</a></li>
@@ -41,9 +35,7 @@
         </div>
     </header>
 
-    <!-- محتوای اصلی هر صفحه اینجا قرار می‌گیرد -->
     <main class="container">
-        <!-- بخش نمایش پیام‌های فلش -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
