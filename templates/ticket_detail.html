@@ -35,7 +35,10 @@
         {{ ticket.description }}
     </div>
 
+    <!-- --- تغییر مهم: این بخش فقط برای ادمین نمایش داده می‌شود --- -->
+    {% if current_user.is_authenticated and current_user.role == 'admin' %}
     <footer class="actions-section">
+        <hr>
         <div class="grid">
             <form action="{{ url_for('update_status', ticket_id=ticket.id) }}" method="POST">
                 <fieldset>
@@ -54,5 +57,7 @@
             </form>
         </div>
     </footer>
+    {% endif %}
+    
 </article>
 {% endblock %}
