@@ -4,11 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ثبت تیکت جدید - سامانه CRM علامه حلی</title>
-    <!-- اضافه کردن استایل‌های مدرن Pico.css فقط با یک خط کد -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
 </head>
 <body>
-    <!-- main یک تگ معنایی برای محتوای اصلی صفحه است -->
     <main class="container">
         <article>
             <header>
@@ -16,21 +14,18 @@
                 <p>لطفاً اطلاعات مشکل دانش‌آموز را با دقت وارد نمایید.</p>
             </header>
             
-            <!-- فرم اصلی ما برای ارسال اطلاعات به سرور -->
-            <form>
-                <!-- فیلد برای حلی کد -->
+            <!-- تغییر مهم در این خط اتفاق افتاده است -->
+            <form action="/create" method="POST">
+                
                 <label for="student_code">حلی کد دانش‌آموز</label>
                 <input type="text" id="student_code" name="student_code" placeholder="مثال: 9812345" required>
                 
-                <!-- فیلد برای عنوان تیکت -->
                 <label for="title">عنوان مشکل</label>
                 <input type="text" id="title" name="title" placeholder="یک جمله کوتاه در مورد مشکل" required>
                 
-                <!-- فیلد برای توضیحات کامل -->
                 <label for="description">شرح کامل مشکل</label>
                 <textarea id="description" name="description" rows="5" placeholder="جزئیات کامل مشکل را اینجا بنویسید..." required></textarea>
                 
-                <!-- دکمه ثبت -->
                 <button type="submit">ثبت تیکت</button>
             </form>
         </article>
