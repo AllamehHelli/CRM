@@ -20,7 +20,8 @@ login_manager.login_message_category = "info"
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128))
+    # --- تغییر مهم در این خط اتفاق افتاده است ---
+    password_hash = db.Column(db.String(256)) # افزایش طول از 128 به 256
     role = db.Column(db.String(20), default='counselor')
 
     def set_password(self, password):
@@ -41,55 +42,55 @@ class Ticket(db.Model):
     description = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(20), default='New')
     department_id = db.Column(db.Integer, db.ForeignKey('department.id'), nullable=False)
-    creator_id = db.Column(db.Integer, db.ForeignKey('user.id')) # ستون سازنده تیکت
+    creator_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- مسیرهای جدید برای ثبت نام، ورود و خروج ---
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
         user = User.query.filter_by(username=username).first()
         if user and user.check_password(password):
             login_user(user)
-            return redirect(url_for('index'))
+            # کاربر را به صفحه‌ای که قصد داشت برود (یا صفحه اصلی) هدایت می‌کنیم
+            next_page = request.args.get('next')
+            return redirect(next_page or url_for('index'))
         else:
             flash('نام کاربری یا رمز عبور اشتباه است.', 'danger')
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    # این صفحه فقط باید در صورتی کار کند که هیچ کاربری در سیستم وجود ندارد
     if User.query.first() is not None:
+        flash('امکان ثبت نام وجود ندارد. کاربر ادمین قبلا ایجاد شده است.', 'warning')
         return redirect(url_for('login'))
         
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
         
-        existing_user = User.query.filter_by(username=username).first()
-        if existing_user is None:
-            new_user = User(username=username, role='admin') # اولین کاربر ادمین است
-            new_user.set_password(password)
-            db.session.add(new_user)
-            db.session.commit()
-            login_user(new_user)
-            return redirect(url_for('index'))
-        flash('این نام کاربری قبلاً ثبت شده است.', 'warning')
+        new_user = User(username=username, role='admin')
+        new_user.set_password(password)
+        db.session.add(new_user)
+        db.session.commit()
+        
+        flash('حساب کاربری ادمین با موفقیت ایجاد شد. لطفاً وارد شوید.', 'success')
+        return redirect(url_for('login'))
+        
     return render_template('register.html')
 
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
+    flash('شما با موفقیت از سیستم خارج شدید.', 'info')
     return redirect(url_for('login'))
-
-# --- مسیرهای اصلی برنامه که حالا محافظت شده‌اند ---
 
 @app.route('/')
 @login_required
