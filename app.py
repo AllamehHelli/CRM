@@ -18,12 +18,11 @@ login_manager.login_view = 'login'
 login_manager.login_message = "برای دسترسی به این صفحه باید ابتدا وارد شوید."
 login_manager.login_message_category = "info"
 
-# --- دکوراتور برای محدود کردن دسترسی به ادمین ---
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated or current_user.role != 'admin':
-            abort(403) # خطای Forbidden
+            abort(403)
         return f(*args, **kwargs)
     return decorated_function
 
@@ -31,8 +30,8 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     password_hash = db.Column(db.String(256))
-    role = db.Column(db.String(20), default='counselor')
-    created_tickets = db.relationship('Ticket', backref='creator', lazy=True)
+    role = db.Column(db.String(20), default='counselor', nullable=False)
+    created_tickets = db.relationship('Ticket', backref='creator', lazy=True, cascade="all, delete-orphan")
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -58,54 +57,53 @@ class Ticket(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- مسیرهای ورود و خروج (بدون تغییر) ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if User.query.first() is None:
+        return redirect(url_for('register_first_admin'))
     if current_user.is_authenticated:
         return redirect(url_for('index'))
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        user = User.query.filter_by(username=username).first()
-        if user and user.check_password(password):
+        user = User.query.filter_by(username=request.form['username']).first()
+        if user and user.check_password(request.form['password']):
             login_user(user)
-            next_page = request.args.get('next')
-            return redirect(next_page or url_for('index'))
-        else:
-            flash('نام کاربری یا رمز عبور اشتباه است.', 'danger')
+            return redirect(url_for('index'))
+        flash('نام کاربری یا رمز عبور اشتباه است.', 'danger')
     return render_template('login.html')
+
+@app.route('/register_first_admin', methods=['GET', 'POST'])
+def register_first_admin():
+    if User.query.first() is not None:
+        return redirect(url_for('login'))
+    if request.method == 'POST':
+        new_user = User(username=request.form['username'], role='admin')
+        new_user.set_password(request.form['password'])
+        db.session.add(new_user)
+        db.session.commit()
+        flash('کاربر ادمین با موفقیت ایجاد شد. لطفاً وارد شوید.', 'success')
+        return redirect(url_for('login'))
+    return render_template('register.html')
 
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
-    flash('شما با موفقیت از سیستم خارج شدید.', 'info')
     return redirect(url_for('login'))
-
-# --- مسیرهای اصلی برنامه با منطق دسترسی ---
 
 @app.route('/')
 @login_required
 def index():
     departments = Department.query.all()
-    # اگر کاربر ادمین است، همه تیکت‌ها را نشان بده
     if current_user.role == 'admin':
         tickets = Ticket.query.order_by(Ticket.id.desc()).all()
-    # در غیر این صورت (مشاور)، فقط تیکت‌های خودش را نشان بده
     else:
         tickets = Ticket.query.filter_by(creator_id=current_user.id).order_by(Ticket.id.desc()).all()
-    
     return render_template('index.html', tickets=tickets, departments=departments)
 
 @app.route('/create', methods=['POST'])
 @login_required
 def create():
-    # ... (بدون تغییر)
-    student_code = request.form['student_code']
-    title = request.form['title']
-    description = request.form['description']
-    department_id = request.form['department_id']
-    new_ticket = Ticket(student_code=student_code, title=title, description=description, department_id=department_id, creator_id=current_user.id)
+    new_ticket = Ticket(student_code=request.form['student_code'], title=request.form['title'], description=request.form['description'], department_id=request.form['department_id'], creator_id=current_user.id)
     db.session.add(new_ticket)
     db.session.commit()
     return redirect(url_for('index'))
@@ -114,77 +112,68 @@ def create():
 @login_required
 def ticket_detail(ticket_id):
     ticket = Ticket.query.get_or_404(ticket_id)
-    # اگر کاربر ادمین نیست، بررسی کن که آیا این تیکت متعلق به خودش است یا نه
     if current_user.role != 'admin' and ticket.creator_id != current_user.id:
-        abort(403) # اگر نیست، اجازه دسترسی نده
+        abort(403)
     return render_template('ticket_detail.html', ticket=ticket)
-
-# --- مسیرهای مدیریت (آپدیت و حذف) فقط برای ادمین ---
 
 @app.route('/ticket/<int:ticket_id>/update', methods=['POST'])
 @login_required
-@admin_required # فقط ادمین می‌تواند وضعیت را تغییر دهد
+@admin_required
 def update_status(ticket_id):
-    ticket_to_update = Ticket.query.get_or_404(ticket_id)
-    new_status = request.form['status']
-    ticket_to_update.status = new_status
+    ticket = Ticket.query.get_or_404(ticket_id)
+    ticket.status = request.form['status']
     db.session.commit()
     return redirect(url_for('ticket_detail', ticket_id=ticket_id))
 
 @app.route('/ticket/<int:ticket_id>/delete', methods=['POST'])
 @login_required
-@admin_required # فقط ادمین می‌تواند تیکت را حذف کند
+@admin_required
 def delete_ticket(ticket_id):
-    ticket_to_delete = Ticket.query.get_or_404(ticket_id)
-    db.session.delete(ticket_to_delete)
+    ticket = Ticket.query.get_or_404(ticket_id)
+    db.session.delete(ticket)
     db.session.commit()
-    flash(f'تیکت شماره {ticket_to_delete.id} با موفقیت حذف شد.', 'success')
+    flash(f'تیکت شماره {ticket.id} حذف شد.', 'success')
     return redirect(url_for('index'))
 
-# --- بخش مدیریت کاربران (فقط برای ادمین) ---
-
+# --- مسیرهای جدید و امن برای مدیریت کاربران ---
 @app.route('/manage_users')
 @login_required
 @admin_required
 def manage_users():
-    users = User.query.all()
+    users = User.query.order_by(User.id).all()
     return render_template('manage_users.html', users=users)
 
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    # این تابع را تغییر می‌دهیم تا ادمین بتواند کاربران جدید بسازد
-    # اگر کسی لاگین نکرده و کاربری وجود ندارد، به او اجازه ثبت نام اولین ادمین را می‌دهیم
-    if not current_user.is_authenticated and User.query.first() is not None:
-        return redirect(url_for('login'))
-
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        role = request.form.get('role', 'counselor') # نقش را از فرم می‌گیریم
-
-        if User.query.filter_by(username=username).first():
-            flash('این نام کاربری قبلاً ثبت شده است.', 'danger')
-            return redirect(url_for('manage_users') if current_user.is_authenticated else url_for('register'))
-        
+@app.route('/add_user', methods=['POST'])
+@login_required
+@admin_required
+def add_user():
+    username = request.form['username']
+    password = request.form['password']
+    role = request.form['role']
+    if User.query.filter_by(username=username).first():
+        flash(f'نام کاربری "{username}" قبلا ثبت شده است.', 'danger')
+    else:
         new_user = User(username=username, role=role)
         new_user.set_password(password)
         db.session.add(new_user)
         db.session.commit()
-        
-        flash(f'کاربر {username} با موفقیت ایجاد شد.', 'success')
-        return redirect(url_for('manage_users') if current_user.is_authenticated else url_for('login'))
-        
-    # اگر اولین کاربر است که ثبت نام می‌کند
-    if User.query.first() is None:
-        return render_template('register.html', first_user=True)
-    # اگر ادمین در حال ساخت کاربر جدید است
-    elif current_user.is_authenticated and current_user.role == 'admin':
-        return render_template('register.html', first_user=False)
-    else:
-        abort(403)
+        flash(f'کاربر "{username}" با نقش {role} با موفقیت ایجاد شد.', 'success')
+    return redirect(url_for('manage_users'))
 
+@app.route('/delete_user/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def delete_user(user_id):
+    if user_id == current_user.id:
+        flash('شما نمی‌توانید حساب کاربری خودتان را حذف کنید.', 'danger')
+        return redirect(url_for('manage_users'))
+    user_to_delete = User.query.get_or_404(user_id)
+    db.session.delete(user_to_delete)
+    db.session.commit()
+    flash(f'کاربر "{user_to_delete.username}" با موفقیت حذف شد.', 'success')
+    return redirect(url_for('manage_users'))
 
-# --- راه‌اندازی اولیه (بدون تغییر) ---
+# --- راه‌اندازی اولیه ---
 def create_default_departments():
     default_deps = ['کتابخوان', 'بازارهوشمند', 'آموزش', 'آزمون‌ها', 'عمومی']
     for dep_name in default_deps:
