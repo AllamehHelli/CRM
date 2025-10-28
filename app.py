@@ -1,5 +1,6 @@
 import os
-from flask import Flask, render_template  # render_template را اضافه کردیم
+# request و redirect را برای مدیریت فرم اضافه می‌کنیم
+from flask import Flask, render_template, request, redirect
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
@@ -18,13 +19,37 @@ class Ticket(db.Model):
     def __repr__(self):
         return f"<Ticket {self.id}: {self.title}>"
 
-# --- مسیر اصلی برنامه (Route) ---
-# این تابع را تغییر دادیم
+# این مسیر، فرم را نمایش می‌دهد
 @app.route('/')
 def index():
-    # به جای متن ساده، حالا فایل index.html را به کاربر نمایش می‌دهیم
     return render_template('index.html')
 
-# این بخش برای ایجاد جدول‌ها سر جای خودش باقی می‌ماند
+# --- مسیر جدید برای ذخیره کردن تیکت ---
+# این مسیر فقط به درخواست‌های POST (ارسال فرم) پاسخ می‌دهد
+@app.route('/create', methods=['POST'])
+def create():
+    # ۱. خواندن اطلاعات از فرم ارسال شده
+    student_code = request.form['student_code']
+    title = request.form['title']
+    description = request.form['description']
+
+    # ۲. ساخت یک نمونه جدید از کلاس Ticket با این اطلاعات
+    new_ticket = Ticket(
+        student_code=student_code,
+        title=title,
+        description=description
+    )
+
+    # ۳. اضافه کردن تیکت جدید به پایگاه داده و ذخیره آن
+    db.session.add(new_ticket)
+    db.session.commit()
+
+    # ۴. انتقال کاربر به صفحه اصلی (برای ثبت تیکت بعدی)
+    return redirect('/')
+
+
+# این بخش برای ایجاد جدول‌ها بدون تغییر باقی می‌ماند
 with app.app_context():
     db.create_all()
+
+**ما هنوز راهی برای دیدن تیکت‌های ثبت شده نساخته‌ایم.** این کار دقیقاً مرحله بعدی ما خواهد بود. فعلاً با ثبت یک یا دو تیکت، "گاوصندوق" خود را پر کنید
