@@ -1,84 +1,58 @@
-<!DOCTYPE html>
-<html lang="fa" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>جزئیات تیکت #{{ ticket.id }} - {{ ticket.title }}</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
-    <style>
-        .description-box {
-            background-color: var(--card-background-color);
-            border: var(--card-border);
-            padding: 1rem;
-            border-radius: var(--border-radius);
-            white-space: pre-wrap;
-        }
-        .actions-section {
-            margin-top: 2rem;
-            padding-top: 1.5rem;
-            border-top: var(--card-border);
-        }
-        .actions-section fieldset {
-            padding: 0;
-            border: none;
-        }
-        .actions-section .grid {
-            grid-gap: 0.5rem;
-        }
-        /* استایل سفارشی برای دکمه خطر */
-        .danger-button {
-            --background-color: var(--form-element-invalid-background-color);
-            --border-color: var(--form-element-invalid-border-color);
-            --color: var(--contrast);
-        }
-    </style>
-</head>
-<body>
-    <main class="container">
-        <article>
-            <header>
-                <nav>
-                    <ul>
-                        <li><a href="/">&larr; بازگشت به لیست تیکت‌ها</a></li>
-                    </ul>
-                </nav>
-                <h1>{{ ticket.title }}</h1>
-                <p>
-                    <strong>شناسه تیکت:</strong> {{ ticket.id }} | 
-                    <strong>حلی کد:</strong> {{ ticket.student_code }} | 
-                    <strong>بخش:</strong> {{ ticket.department.name }} | 
-                    <strong>وضعیت:</strong> <mark>{{ ticket.status }}</mark>
-                </p>
-            </header>
+{% extends "base.html" %}
 
-            <h2>شرح کامل مشکل</h2>
-            <div class="description-box">
-                {{ ticket.description }}
-            </div>
+{% block title %}جزئیات تیکت #{{ ticket.id }} - {{ ticket.title }}{% endblock %}
 
-            <div class="actions-section">
-                <!-- فرم مدیریت وضعیت تیکت -->
-                <form action="{{ url_for('update_status', ticket_id=ticket.id) }}" method="POST">
-                    <fieldset>
-                        <legend><strong>تغییر وضعیت تیکت</strong></legend>
-                        <div class="grid">
-                            <button type="submit" name="status" value="In Progress" class="secondary">در حال بررسی</button>
-                            <button type="submit" name="status" value="Closed" class="contrast">بستن تیکت</button>
-                            <button type="submit" name="status" value="New">بازگشایی (جدید)</button>
-                        </div>
-                    </fieldset>
-                </form>
+{% block head_extra %}
+<style>
+    .description-box { white-space: pre-wrap; padding: 1.5rem; border-radius: var(--border-radius); background-color: var(--code-background-color); border: var(--card-border); }
+    .actions-section { margin-top: 2rem; }
+    .actions-section fieldset { padding: 0; border: none; }
+    .actions-section .grid { grid-gap: 0.5rem; }
+    .danger-button { --background-color: var(--form-element-invalid-background-color); --border-color: var(--form-element-invalid-border-color); --color: var(--contrast); }
+</style>
+{% endblock %}
 
-                <!-- --- بخش جدید: فرم حذف تیکت --- -->
-                <form action="{{ url_for('delete_ticket', ticket_id=ticket.id) }}" method="POST" onsubmit="return confirm('آیا از حذف این تیکت اطمینان دارید؟ این عمل غیرقابل بازگشت است.');">
-                    <fieldset>
-                        <legend><strong>عملیات خطرناک</strong></legend>
-                        <!-- دکمه حذف با استایل سفارشی -->
-                        <button type="submit" class="danger-button">حذف کامل تیکت</button>
-                    </fieldset>
-                </form>
-            </div>
-        </article>
-    </main>
-</body>
-</html>
+{% block content %}
+<nav>
+    <ul>
+        <li><a href="{{ url_for('index') }}">&larr; بازگشت به داشبورد</a></li>
+    </ul>
+</nav>
+
+<article>
+    <header>
+        <h1>{{ ticket.title }}</h1>
+        <p>
+            <strong>شناسه تیکت:</strong> {{ ticket.id }} | 
+            <strong>حلی کد:</strong> {{ ticket.student_code }} | 
+            <strong>بخش:</strong> {{ ticket.department.name }} | 
+            <strong>وضعیت:</strong> <mark>{{ ticket.status }}</mark>
+        </p>
+    </header>
+
+    <h2>شرح کامل مشکل</h2>
+    <div class="description-box">
+        {{ ticket.description }}
+    </div>
+
+    <footer class="actions-section">
+        <div class="grid">
+            <form action="{{ url_for('update_status', ticket_id=ticket.id) }}" method="POST">
+                <fieldset>
+                    <legend><strong>تغییر وضعیت</strong></legend>
+                    <div class="grid">
+                        <button type="submit" name="status" value="In Progress" class="secondary">در حال بررسی</button>
+                        <button type="submit" name="status" value="Closed" class="contrast">بستن تیکت</button>
+                    </div>
+                </fieldset>
+            </form>
+            <form action="{{ url_for('delete_ticket', ticket_id=ticket.id) }}" method="POST" onsubmit="return confirm('آیا از حذف این تیکت اطمینان دارید؟');">
+                <fieldset>
+                    <legend><strong>عملیات خطرناک</strong></legend>
+                    <button type="submit" class="danger-button">حذف کامل</button>
+                </fieldset>
+            </form>
+        </div>
+    </footer>
+</article>
+{% endblock %}
