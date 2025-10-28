@@ -3,17 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- عنوان صفحه به صورت پویا از اطلاعات تیکت گرفته می‌شود -->
     <title>جزئیات تیکت #{{ ticket.id }} - {{ ticket.title }}</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <style>
-        /* کمی استایل برای بهتر دیده شدن توضیحات */
         .description-box {
             background-color: var(--card-background-color);
             border: var(--card-border);
             padding: 1rem;
             border-radius: var(--border-radius);
-            white-space: pre-wrap; /* این خط باعث می‌شود فاصله‌ها و خطوط جدید حفظ شوند */
+            white-space: pre-wrap;
         }
         small {
             color: var(--muted-color);
@@ -24,7 +22,6 @@
     <main class="container">
         <article>
             <header>
-                <!-- هدر صفحه با اطلاعات کلیدی تیکت -->
                 <nav>
                     <ul>
                         <li><a href="/">&larr; بازگشت به لیست تیکت‌ها</a></li>
@@ -39,94 +36,12 @@
                 </p>
             </header>
 
-            <!-- نمایش شرح کامل مشکل -->
             <h2>شرح کامل مشکل</h2>
             <div class="description-box">
                 {{ ticket.description }}
             </div>
 
         </article>
-    </main>
-</body>
-</html>```
-*   روی **`Commit new file`** کلیک کنید.
-
----
-
-### **مرحله ۳ از ۳: به‌روزرسانی `templates/index.html`**
-
-**هدف:** تبدیل کردن عنوان هر تیکت در جدول به یک لینک که به صفحه جزئیات همان تیکت اشاره می‌کند.
-
-*   به صفحه پروژه در **GitHub** بروید.
-*   وارد پوشه `templates` شده و روی فایل **`index.html`** کلیک کنید.
-*   روی **آیکون مداد ✏️ (Edit this file)** کلیک کنید.
-*   **تمام محتوای فعلی را پاک کرده** و کد کامل و جدید زیر را به جای آن **Paste** کنید:
-
-```html
-<!DOCTYPE html>
-<html lang="fa" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سامانه CRM علامه حلی</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
-    <style>
-        body { padding-bottom: 5rem; }
-        .ticket-table { margin-top: 2rem; }
-    </style>
-</head>
-<body>
-    <main class="container">
-        <article>
-            <header><h1>ثبت تیکت جدید</h1></header>
-            <form action="/create" method="POST">
-                <label for="student_code">حلی کد دانش‌آموز</label>
-                <input type="text" id="student_code" name="student_code" placeholder="مثال: 9812345" required>
-                <label for="title">عنوان مشکل</label>
-                <input type="text" id="title" name="title" placeholder="یک جمله کوتاه در مورد مشکل" required>
-                <label for="department_id">بخش مربوطه</label>
-                <select id="department_id" name="department_id" required>
-                    <option value="" disabled selected>یک بخش را انتخاب کنید...</option>
-                    {% for department in departments %}
-                        <option value="{{ department.id }}">{{ department.name }}</option>
-                    {% endfor %}
-                </select>
-                <label for="description">شرح کامل مشکل</label>
-                <textarea id="description" name="description" rows="5" placeholder="جزئیات کامل مشکل را اینجا بنویسید..." required></textarea>
-                <button type="submit">ثبت تیکت</button>
-            </form>
-        </article>
-
-        <section class="ticket-table">
-            <h2>لیست تیکت‌های ثبت شده</h2>
-            {% if tickets %}
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>حلی کد</th>
-                        <th>عنوان</th>
-                        <th>بخش</th>
-                        <th>وضعیت</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for ticket in tickets %}
-                    <tr>
-                        <td>{{ ticket.id }}</td>
-                        <td>{{ ticket.student_code }}</td>
-                        <!-- --- تغییر مهم در این خط اتفاق افتاده است --- -->
-                        <td><a href="/ticket/{{ ticket.id }}">{{ ticket.title }}</a></td>
-                        <td>{{ ticket.department.name }}</td>
-                        <td><mark>{{ ticket.status }}</mark></td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <p>در حال حاضر هیچ تیکتی ثبت نشده است.</p>
-            {% endif %}
-        </section>
     </main>
 </body>
 </html>
