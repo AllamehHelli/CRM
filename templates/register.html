@@ -15,7 +15,10 @@
         <article>
             <h1 style="text-align: center;">ایجاد اولین کاربر (Admin)</h1>
             <p style="text-align: center;">این صفحه فقط یک بار برای ساخت کاربر اصلی سیستم نمایش داده می‌شود.</p>
-            <form method="POST" action="{{ url_for('register') }}">
+            
+            <!-- تغییر مهم در این خط اتفاق افتاده است -->
+            <form method="POST" action="{{ url_for('register_first_admin') }}">
+                
                 <label for="username">نام کاربری</label>
                 <input type="text" name="username" required>
 
