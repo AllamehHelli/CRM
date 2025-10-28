@@ -1,5 +1,6 @@
 import os
-from flask import Flask, render_template, request, redirect
+# url_for را برای ساخت لینک‌های پویا اضافه می‌کنیم
+from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
@@ -48,15 +49,26 @@ def create():
     )
     db.session.add(new_ticket)
     db.session.commit()
-    return redirect('/')
+    return redirect(url_for('index'))
 
-# --- مسیر جدید برای نمایش جزئیات یک تیکت ---
 @app.route('/ticket/<int:ticket_id>')
 def ticket_detail(ticket_id):
-    # پیدا کردن تیکت با استفاده از ID آن. اگر پیدا نشد خطای 404 می‌دهد.
     ticket = Ticket.query.get_or_404(ticket_id)
-    # ارسال اطلاعات تیکت پیدا شده به یک فایل HTML جدید
     return render_template('ticket_detail.html', ticket=ticket)
+
+# --- مسیر جدید برای به‌روزرسانی وضعیت تیکت ---
+@app.route('/ticket/<int:ticket_id>/update', methods=['POST'])
+def update_status(ticket_id):
+    # ۱. تیکت مورد نظر را پیدا می‌کنیم
+    ticket_to_update = Ticket.query.get_or_404(ticket_id)
+    # ۲. وضعیت جدید را از فرمی که ارسال شده می‌خوانیم
+    new_status = request.form['status']
+    # ۳. وضعیت تیکت را به‌روز می‌کنیم
+    ticket_to_update.status = new_status
+    # ۴. تغییرات را در پایگاه داده ذخیره می‌کنیم
+    db.session.commit()
+    # ۵. کاربر را به همان صفحه جزئیات تیکت بازمی‌گردانیم
+    return redirect(url_for('ticket_detail', ticket_id=ticket_id))
 
 
 def create_default_departments():
