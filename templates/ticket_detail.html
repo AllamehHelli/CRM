@@ -13,8 +13,17 @@
             border-radius: var(--border-radius);
             white-space: pre-wrap;
         }
-        small {
-            color: var(--muted-color);
+        .actions-form {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: var(--card-border);
+        }
+        .actions-form fieldset {
+            padding: 0;
+            border: none;
+        }
+        .actions-form .grid {
+            grid-gap: 0.5rem; /* فاصله کمتر بین دکمه‌ها */
         }
     </style>
 </head>
@@ -39,6 +48,21 @@
             <h2>شرح کامل مشکل</h2>
             <div class="description-box">
                 {{ ticket.description }}
+            </div>
+
+            <!-- --- بخش جدید: فرم مدیریت وضعیت تیکت --- -->
+            <div class="actions-form">
+                <form action="{{ url_for('update_status', ticket_id=ticket.id) }}" method="POST">
+                    <fieldset>
+                        <legend><strong>تغییر وضعیت تیکت</strong></legend>
+                        <div class="grid">
+                            <!-- دکمه‌ها وضعیت‌های مختلف را ارسال می‌کنند -->
+                            <button type="submit" name="status" value="In Progress" class="secondary">در حال بررسی</button>
+                            <button type="submit" name="status" value="Closed" class="contrast">بستن تیکت</button>
+                            <button type="submit" name="status" value="New">بازگشایی (جدید)</button>
+                        </div>
+                    </fieldset>
+                </form>
             </div>
 
         </article>
