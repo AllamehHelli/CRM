@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ورود به سامانه CRM</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <style>
+        html, body { height: 100%; }
+        body { display: flex; align-items: center; justify-content: center; }
+        .flash-message { margin-bottom: 1rem; padding: 1rem; border-radius: var(--border-radius); }
+        .flash-message.danger { background-color: var(--form-element-invalid-background-color); border-color: var(--form-element-invalid-border-color); }
+        .flash-message.info { background-color: var(--code-background-color); border: var(--card-border); }
+    </style>
+</head>
+<body>
+    <main class="container" style="max-width: 450px;">
+        <article>
+            <h1 style="text-align: center;">ورود به سامانه</h1>
+            
+            <!-- بخش نمایش پیام‌های خطا یا اطلاع‌رسانی -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-message {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('login') }}">
+                <label for="username">نام کاربری</label>
+                <input type="text" name="username" required>
+
+                <label for="password">رمز عبور</label>
+                <input type="password" name="password" required>
+
+                <button type="submit">ورود</button>
+            </form>
+            
+        </article>
+    </main>
+</body>
+</html>
