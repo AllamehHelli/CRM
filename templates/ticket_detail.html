@@ -13,17 +13,23 @@
             border-radius: var(--border-radius);
             white-space: pre-wrap;
         }
-        .actions-form {
+        .actions-section {
             margin-top: 2rem;
             padding-top: 1.5rem;
             border-top: var(--card-border);
         }
-        .actions-form fieldset {
+        .actions-section fieldset {
             padding: 0;
             border: none;
         }
-        .actions-form .grid {
-            grid-gap: 0.5rem; /* فاصله کمتر بین دکمه‌ها */
+        .actions-section .grid {
+            grid-gap: 0.5rem;
+        }
+        /* استایل سفارشی برای دکمه خطر */
+        .danger-button {
+            --background-color: var(--form-element-invalid-background-color);
+            --border-color: var(--form-element-invalid-border-color);
+            --color: var(--contrast);
         }
     </style>
 </head>
@@ -50,21 +56,28 @@
                 {{ ticket.description }}
             </div>
 
-            <!-- --- بخش جدید: فرم مدیریت وضعیت تیکت --- -->
-            <div class="actions-form">
+            <div class="actions-section">
+                <!-- فرم مدیریت وضعیت تیکت -->
                 <form action="{{ url_for('update_status', ticket_id=ticket.id) }}" method="POST">
                     <fieldset>
                         <legend><strong>تغییر وضعیت تیکت</strong></legend>
                         <div class="grid">
-                            <!-- دکمه‌ها وضعیت‌های مختلف را ارسال می‌کنند -->
                             <button type="submit" name="status" value="In Progress" class="secondary">در حال بررسی</button>
                             <button type="submit" name="status" value="Closed" class="contrast">بستن تیکت</button>
                             <button type="submit" name="status" value="New">بازگشایی (جدید)</button>
                         </div>
                     </fieldset>
                 </form>
-            </div>
 
+                <!-- --- بخش جدید: فرم حذف تیکت --- -->
+                <form action="{{ url_for('delete_ticket', ticket_id=ticket.id) }}" method="POST" onsubmit="return confirm('آیا از حذف این تیکت اطمینان دارید؟ این عمل غیرقابل بازگشت است.');">
+                    <fieldset>
+                        <legend><strong>عملیات خطرناک</strong></legend>
+                        <!-- دکمه حذف با استایل سفارشی -->
+                        <button type="submit" class="danger-button">حذف کامل تیکت</button>
+                    </fieldset>
+                </form>
+            </div>
         </article>
     </main>
 </body>
