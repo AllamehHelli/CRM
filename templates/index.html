@@ -6,33 +6,43 @@
     <title>سامانه CRM علامه حلی</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <style>
-        /* کمی استایل سفارشی برای خوانایی بهتر */
         body { padding-bottom: 5rem; }
         .ticket-table { margin-top: 2rem; }
     </style>
 </head>
 <body>
     <main class="container">
-        <!-- بخش فرم ثبت تیکت (بدون تغییر) -->
         <article>
             <header>
                 <h1>ثبت تیکت جدید</h1>
             </header>
             <form action="/create" method="POST">
+                <!-- فیلدهای حلی کد و عنوان (بدون تغییر) -->
                 <label for="student_code">حلی کد دانش‌آموز</label>
                 <input type="text" id="student_code" name="student_code" placeholder="مثال: 9812345" required>
                 <label for="title">عنوان مشکل</label>
                 <input type="text" id="title" name="title" placeholder="یک جمله کوتاه در مورد مشکل" required>
+
+                <!-- --- بخش جدید: لیست کشویی برای انتخاب بخش --- -->
+                <label for="department_id">بخش مربوطه</label>
+                <select id="department_id" name="department_id" required>
+                    <option value="" disabled selected>یک بخش را انتخاب کنید...</option>
+                    <!-- حلقه برای ساخت گزینه‌های لیست کشویی -->
+                    {% for department in departments %}
+                        <option value="{{ department.id }}">{{ department.name }}</option>
+                    {% endfor %}
+                </select>
+
+                <!-- فیلد توضیحات (بدون تغییر) -->
                 <label for="description">شرح کامل مشکل</label>
                 <textarea id="description" name="description" rows="5" placeholder="جزئیات کامل مشکل را اینجا بنویسید..." required></textarea>
+                
                 <button type="submit">ثبت تیکت</button>
             </form>
         </article>
 
-        <!-- --- بخش جدید: نمایش لیست تیکت‌ها --- -->
         <section class="ticket-table">
             <h2>لیست تیکت‌های ثبت شده</h2>
-            <!-- این جدول فقط در صورتی نمایش داده می‌شود که تیکتی وجود داشته باشد -->
             {% if tickets %}
             <table>
                 <thead>
@@ -40,23 +50,25 @@
                         <th>ID</th>
                         <th>حلی کد</th>
                         <th>عنوان</th>
+                        <!-- --- ستون جدید برای نمایش بخش --- -->
+                        <th>بخش</th>
                         <th>وضعیت</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- حلقه برای نمایش هر تیکت در یک سطر جدید -->
                     {% for ticket in tickets %}
                     <tr>
                         <td>{{ ticket.id }}</td>
                         <td>{{ ticket.student_code }}</td>
                         <td>{{ ticket.title }}</td>
+                        <!-- نمایش نام بخش مربوط به هر تیکت -->
+                        <td>{{ ticket.department.name }}</td>
                         <td><mark>{{ ticket.status }}</mark></td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
             {% else %}
-            <!-- پیامی که در صورت خالی بودن لیست نمایش داده می‌شود -->
             <p>در حال حاضر هیچ تیکتی ثبت نشده است.</p>
             {% endif %}
         </section>
