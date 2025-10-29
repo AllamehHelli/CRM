@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}ویرایش تیکت #{{ ticket.id }}{% endblock %}
+
+{% block content %}
+<article>
+    <header>
+        <nav>
+            <ul>
+                <li><a href="{{ url_for('ticket_detail', ticket_id=ticket.id) }}">&larr; بازگشت به جزئیات تیکت</a></li>
+            </ul>
+        </nav>
+        <h1>ویرایش تیکت #{{ ticket.id }}</h1>
+    </header>
+    <form method="POST">
+        <label for="student_code">حلی کد دانش‌آموز</label>
+        <input type="text" name="student_code" value="{{ ticket.student_code }}" required>
+
+        <label for="title">عنوان مشکل</label>
+        <input type="text" name="title" value="{{ ticket.title }}" required>
+
+        <label for="department_id">بخش مربوطه</label>
+        <select name="department_id" required>
+            {% for department in departments %}
+                <option value="{{ department.id }}" {% if department.id == ticket.department_id %}selected{% endif %}>
+                    {{ department.name }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <label for="description">شرح کامل مشکل</label>
+        <textarea name="description" rows="5" required>{{ ticket.description }}</textarea>
+
+        <button type="submit">ذخیره تغییرات</button>
+    </form>
+</article>
+{% endblock %}
