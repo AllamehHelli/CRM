@@ -1,0 +1,12 @@
+/* Import Google Font - Vazirmatn */
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap');
+
+body {
+    font-family: 'Vazirmatn', sans-serif;
+    background-color: #f8f9fa; /* یک پس‌زمینه خاکستری بسیار ملایم */
+}
+
+/* اضافه کردن بردر به جدول‌ها که شما خواسته بودید */
+.table {
+    border: 1px solid #dee2e6;
+}
