@@ -1,68 +1,42 @@
 {% extends "base.html" %}
-
-{% block title %}جزئیات تیکت #{{ ticket.id }} - {{ ticket.title }}{% endblock %}
-
-{% block head_extra %}
-<style>
-    .description-box { white-space: pre-wrap; padding: 1.5rem; border-radius: var(--border-radius); background-color: var(--code-background-color); border: var(--card-border); }
-    .actions-section { margin-top: 2rem; }
-    .actions-section fieldset { padding: 0; border: none; }
-    .actions-section .grid { grid-gap: 0.5rem; }
-    .danger-button { --background-color: var(--form-element-invalid-background-color); --border-color: var(--form-element-invalid-border-color); --color: var(--contrast); }
-</style>
-{% endblock %}
-
+{% block title %}تیکت #{{ ticket.id }} - {{ ticket.title }}{% endblock %}
 {% block content %}
-<nav>
-    <ul>
-        <li><a href="{{ url_for('index') }}">&larr; بازگشت به داشبورد</a></li>
-    </ul>
-</nav>
-
-<article>
-    <header>
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h1>{{ ticket.title }}</h1>
-            <!-- دکمه ویرایش فقط برای سازنده تیکت یا ادمین نمایش داده می‌شود -->
-            {% if current_user.id == ticket.creator_id or current_user.role == 'admin' %}
-                <a href="{{ url_for('edit_ticket', ticket_id=ticket.id) }}" role="button" class="outline">ویرایش تیکت</a>
-            {% endif %}
-        </div>
-        <p>
-            <strong>شناسه تیکت:</strong> {{ ticket.id }} | 
+<div class="card shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h4 class="my-0">{{ ticket.title }}</h4>
+        {% if current_user.id == ticket.creator_id or current_user.role == 'admin' %}
+            <a href="{{ url_for('edit_ticket', ticket_id=ticket.id) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil-square"></i> ویرایش</a>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        <p class="card-text">
+            <strong>شناسه:</strong> {{ ticket.id }} | 
             <strong>حلی کد:</strong> {{ ticket.student_code }} | 
             <strong>بخش:</strong> {{ ticket.department.name }} | 
-            <strong>وضعیت:</strong> <mark>{{ ticket.status }}</mark>
+            <strong>وضعیت:</strong> <span class="badge bg-primary">{{ ticket.status }}</span> |
+            <strong>ایجاد کننده:</strong> {{ ticket.creator.first_name }} {{ ticket.creator.last_name }}
         </p>
-    </header>
-
-    <h2>شرح کامل مشکل</h2>
-    <div class="description-box">
-        {{ ticket.description }}
+        <hr>
+        <h5>شرح کامل مشکل:</h5>
+        <p style="white-space: pre-wrap;">{{ ticket.description }}</p>
     </div>
 
-    {% if current_user.is_authenticated and current_user.role == 'admin' %}
-    <footer class="actions-section">
-        <hr>
-        <div class="grid">
-            <form action="{{ url_for('update_status', ticket_id=ticket.id) }}" method="POST">
-                <fieldset>
-                    <legend><strong>تغییر وضعیت</strong></legend>
-                    <div class="grid">
-                        <button type="submit" name="status" value="In Progress" class="secondary">در حال بررسی</button>
-                        <button type="submit" name="status" value="Closed" class="contrast">بستن تیکت</button>
-                    </div>
-                </fieldset>
-            </form>
-            <form action="{{ url_for('delete_ticket', ticket_id=ticket.id) }}" method="POST" onsubmit="return confirm('آیا از حذف این تیکت اطمینان دارید؟');">
-                <fieldset>
-                    <legend><strong>عملیات خطرناک</strong></legend>
-                    <button type="submit" class="danger-button">حذف کامل</button>
-                </fieldset>
-            </form>
-        </div>
-    </footer>
+    {% if current_user.role == 'admin' or (current_user.role == 'operator' and current_user.department_id == ticket.department_id) %}
+    <div class="card-footer text-muted">
+        <form action="{{ url_for('update_status', ticket_id=ticket.id) }}" method="POST">
+            <div class="row align-items-center">
+                <div class="col-auto"><label class="col-form-label">تغییر وضعیت:</label></div>
+                <div class="col-auto">
+                    <select name="status" class="form-select form-select-sm">
+                        <option value="New" {% if ticket.status == 'New' %}selected{% endif %}>جدید</option>
+                        <option value="In Progress" {% if ticket.status == 'In Progress' %}selected{% endif %}>در حال بررسی</option>
+                        <option value="Closed" {% if ticket.status == 'Closed' %}selected{% endif %}>بسته شده</option>
+                    </select>
+                </div>
+                <div class="col-auto"><button type="submit" class="btn btn-secondary btn-sm">ثبت</button></div>
+            </div>
+        </form>
+    </div>
     {% endif %}
-    
-</article>
+</div>
 {% endblock %}
