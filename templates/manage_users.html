@@ -1,59 +1,70 @@
 {% extends "base.html" %}
-
 {% block title %}مدیریت کاربران{% endblock %}
-
 {% block content %}
-<div class="grid">
-    <!-- ستون فرم ایجاد کاربر -->
+<div class.grid">
     <article>
         <header><h3>ایجاد کاربر جدید</h3></header>
         <form action="{{ url_for('add_user') }}" method="POST">
-            <label for="username">نام کاربری</label>
-            <input type="text" name="username" required>
-
-            <label for="password">رمز عبور</label>
-            <input type="password" name="password" required>
-
+            <div class="grid">
+                <label>نام<input type="text" name="first_name" required></label>
+                <label>نام خانوادگی<input type="text" name="last_name" required></label>
+            </div>
+            <label>نام کاربری (ایمیل)<input type="email" name="username" required></label>
+            <label>رمز عبور<input type="password" name="password" required></label>
             <label for="role">نقش کاربر</label>
-            <select name="role" required>
+            <select name="role" id="role-select" required onchange="toggleDepartmentSelect()">
                 <option value="counselor">مشاور (Counselor)</option>
+                <option value="operator">اپراتور بخش (Operator)</option>
                 <option value="admin">مدیر (Admin)</option>
             </select>
-
+            <div id="department-select-wrapper" style="display: none;">
+                <label for="department_id">انتخاب بخش برای اپراتور</label>
+                <select name="department_id" id="department-select">
+                    <option value="" disabled selected>یک بخش را انتخاب کنید</option>
+                    {% for department in departments %}<option value="{{ department.id }}">{{ department.name }}</option>{% endfor %}
+                </select>
+            </div>
             <button type="submit">ایجاد کاربر</button>
         </form>
     </article>
-
-    <!-- ستون لیست کاربران -->
     <article>
         <header><h3>لیست کاربران سیستم</h3></header>
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>نام کاربری</th>
-                    <th>نقش</th>
-                    <th>عملیات</th>
-                </tr>
-            </thead>
+        <figure><table role="grid">
+            <thead><tr><th>نام</th><th>نام کاربری</th><th>نقش</th><th>بخش</th><th>عملیات</th></tr></thead>
             <tbody>
-                {% for user in users %}
+            {% for user in users %}
                 <tr>
-                    <td>{{ user.id }}</td>
+                    <td>{{ user.first_name }} {{ user.last_name }}</td>
                     <td>{{ user.username }}</td>
                     <td>{{ user.role }}</td>
-                    <td>
-                        <!-- دکمه حذف فقط برای کاربرانی غیر از کاربر فعلی نمایش داده می‌شود -->
+                    <td>{{ user.department.name if user.department else '---' }}</td>
+                    <td><div class="grid" style="grid-template-columns: 1fr 1fr; margin: 0;">
+                        <a href="{{ url_for('edit_user', user_id=user.id) }}" role="button" class="outline" style="--padding-block: 0.25rem;">ویرایش</a>
                         {% if user.id != current_user.id %}
                         <form action="{{ url_for('delete_user', user_id=user.id) }}" method="POST" onsubmit="return confirm('آیا از حذف کاربر {{ user.username }} اطمینان دارید؟');" style="margin: 0;">
-                            <button type="submit" class="outline secondary" style="--padding-block: 0.25rem;">حذف</button>
+                            <button type="submit" class="secondary outline" style="--padding-block: 0.25rem;">حذف</button>
                         </form>
                         {% endif %}
-                    </td>
+                    </div></td>
                 </tr>
-                {% endfor %}
+            {% endfor %}
             </tbody>
-        </table>
+        </table></figure>
     </article>
 </div>
+<script>
+    function toggleDepartmentSelect() {
+        var roleSelect = document.getElementById('role-select');
+        var deptWrapper = document.getElementById('department-select-wrapper');
+        var deptSelect = document.getElementById('department-select');
+        if (roleSelect.value === 'operator') {
+            deptWrapper.style.display = 'block';
+            deptSelect.required = true;
+        } else {
+            deptWrapper.style.display = 'none';
+            deptSelect.required = false;
+        }
+    }
+    document.addEventListener('DOMContentLoaded', toggleDepartmentSelect);
+</script>
 {% endblock %}
