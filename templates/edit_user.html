@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}ویرایش کاربر: {{ user.username }}{% endblock %}
+{% block content %}
+<article>
+    <header>
+        <nav><ul><li><a href="{{ url_for('manage_users') }}">&larr; بازگشت به مدیریت کاربران</a></li></ul></nav>
+        <h1>ویرایش کاربر: {{ user.first_name }} {{ user.last_name }}</h1>
+    </header>
+    <form method="POST">
+        <div class="grid">
+            <label>نام<input type="text" name="first_name" value="{{ user.first_name }}" required></label>
+            <label>نام خانوادگی<input type="text" name="last_name" value="{{ user.last_name }}" required></label>
+        </div>
+        <label>نام کاربری (ایمیل)<input type="email" name="username" value="{{ user.username }}" disabled></label>
+        <label>رمز عبور جدید<input type="password" name="password" placeholder="برای عدم تغییر، خالی بگذارید"></label>
+        <label for="role">نقش کاربر</label>
+        <select name="role" id="role-select" required onchange="toggleDepartmentSelect()">
+            <option value="counselor" {% if user.role == 'counselor' %}selected{% endif %}>مشاور (Counselor)</option>
+            <option value="operator" {% if user.role == 'operator' %}selected{% endif %}>اپراتور بخش (Operator)</option>
+            <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>مدیر (Admin)</option>
+        </select>
+        <div id="department-select-wrapper" style="display: none;">
+            <label for="department_id">انتخاب بخش برای اپراتور</label>
+            <select name="department_id" id="department-select">
+                <option value="">هیچکدام</option>
+                {% for department in departments %}<option value="{{ department.id }}" {% if user.department_id == department.id %}selected{% endif %}>{{ department.name }}</option>{% endfor %}
+            </select>
+        </div>
+        <button type="submit">ذخیره تغییرات</button>
+    </form>
+</article>
+<script>
+    function toggleDepartmentSelect() {
+        var roleSelect = document.getElementById('role-select');
+        var deptWrapper = document.getElementById('department-select-wrapper');
+        var deptSelect = document.getElementById('department-select');
+        if (roleSelect.value === 'operator') {
+            deptWrapper.style.display = 'block';
+            deptSelect.required = true;
+        } else {
+            deptWrapper.style.display = 'none';
+            deptSelect.required = false;
+        }
+    }
+    document.addEventListener('DOMContentLoaded', toggleDepartmentSelect);
+</script>
+{% endblock %}
