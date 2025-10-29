@@ -1,65 +1,47 @@
 {% extends "base.html" %}
 {% block title %}داشبورد اصلی{% endblock %}
 {% block content %}
+
+<!-- فرم ایجاد تیکت فقط برای ادمین و مشاور نمایش داده می‌شود -->
+{% if current_user.role != 'operator' %}
 <div class="card shadow-sm mb-4">
-    <div class="card-header">
-        <h4 class="my-0 fw-normal">ثبت تیکت جدید</h4>
-    </div>
+    <div class="card-header"><h4 class="my-0 fw-normal">ثبت تیکت جدید</h4></div>
     <div class="card-body">
         <form action="{{ url_for('create') }}" method="POST">
             <div class="row mb-3">
-                <div class="col-md-6">
-                    <label for="student_code" class="form-label">حلی کد دانش‌آموز</label>
-                    <input type="text" class="form-control" id="student_code" name="student_code" required>
-                </div>
-                <div class="col-md-6">
-                    <label for="title" class="form-label">عنوان مشکل</label>
-                    <input type="text" class="form-control" id="title" name="title" required>
-                </div>
+                <div class="col-md-6"><label for="student_code" class="form-label">حلی کد دانش‌آموز</label><input type="text" class="form-control" id="student_code" name="student_code" required></div>
+                <div class="col-md-6"><label for="title" class="form-label">عنوان مشکل</label><input type="text" class="form-control" id="title" name="title" required></div>
             </div>
-            <div class="mb-3">
-                <label for="department_id" class="form-label">بخش مربوطه</label>
-                <select class="form-select" id="department_id" name="department_id" required>
-                    <option value="" disabled selected>یک بخش را انتخاب کنید...</option>
-                    {% for department in departments %}<option value="{{ department.id }}">{{ department.name }}</option>{% endfor %}
-                </select>
-            </div>
-            <div class="mb-3">
-                <label for="description" class="form-label">شرح کامل مشکل</label>
-                <textarea class="form-control" id="description" name="description" rows="4" required></textarea>
-            </div>
+            <div class="mb-3"><label for="department_id" class="form-label">بخش مربوطه</label><select class="form-select" id="department_id" name="department_id" required><option value="" disabled selected>یک بخش را انتخاب کنید...</option>{% for department in departments %}<option value="{{ department.id }}">{{ department.name }}</option>{% endfor %}</select></div>
+            <div class="mb-3"><label for="description" class="form-label">شرح کامل مشکل</label><textarea class="form-control" id="description" name="description" rows="4" required></textarea></div>
             <button type="submit" class="btn btn-primary">ثبت تیکت</button>
         </form>
     </div>
 </div>
+{% endif %}
 
-<h2 class="mt-5">لیست تیکت‌های ثبت شده</h2>
+<h2 class="mt-4">
+    {% if current_user.role == 'admin' %}همه تیکت‌ها{% elif current_user.role == 'operator' %}تیکت‌های بخش {{ current_user.department.name }}{% else %}تیکت‌های من{% endif %}
+</h2>
 {% if tickets %}
 <div class="table-responsive">
     <table class="table table-striped table-hover align-middle">
-        <thead class="table-light">
-            <tr>
-                <th>ID</th>
-                <th>عنوان</th>
-                <th>بخش</th>
-                <th>وضعیت</th>
-                <th>ایجاد کننده</th>
-            </tr>
-        </thead>
+        <thead class="table-light"><tr><th>ID</th><th>عنوان</th><th>بخش</th><th>وضعیت</th><th>تاریخ ایجاد</th><th>ایجاد کننده</th></tr></thead>
         <tbody>
-            {% for ticket in tickets %}
+        {% for ticket in tickets %}
             <tr>
                 <td>{{ ticket.id }}</td>
                 <td><a href="{{ url_for('ticket_detail', ticket_id=ticket.id) }}">{{ ticket.title }}</a></td>
                 <td>{{ ticket.department.name }}</td>
                 <td><span class="badge bg-secondary">{{ ticket.status }}</span></td>
+                <td>{{ ticket.created_at | shamsi }}</td>
                 <td>{{ ticket.creator.first_name }}</td>
             </tr>
-            {% endfor %}
+        {% endfor %}
         </tbody>
     </table>
 </div>
 {% else %}
-<div class="alert alert-info">در حال حاضر هیچ تیکتی ثبت نشده است.</div>
+<div class="alert alert-info">هیچ تیکتی برای نمایش وجود ندارد.</div>
 {% endif %}
 {% endblock %}
