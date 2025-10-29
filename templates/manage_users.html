@@ -1,56 +1,66 @@
 {% extends "base.html" %}
 {% block title %}مدیریت کاربران{% endblock %}
 {% block content %}
-<div class.grid">
-    <article>
-        <header><h3>ایجاد کاربر جدید</h3></header>
-        <form action="{{ url_for('add_user') }}" method="POST">
-            <div class="grid">
-                <label>نام<input type="text" name="first_name" required></label>
-                <label>نام خانوادگی<input type="text" name="last_name" required></label>
+<div class="row">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header"><h4 class="my-0 fw-normal">لیست کاربران سیستم</h4></div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead><tr><th>نام کامل</th><th>نام کاربری</th><th>نقش</th><th>بخش</th><th style="width: 120px;">عملیات</th></tr></thead>
+                        <tbody>
+                        {% for user in users %}
+                            <tr>
+                                <td>{{ user.first_name }} {{ user.last_name }}</td>
+                                <td>{{ user.username }}</td>
+                                <td>{{ user.role }}</td>
+                                <td>{{ user.department.name if user.department else '---' }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ url_for('edit_user', user_id=user.id) }}" class="btn btn-outline-primary"><i class="bi bi-pencil"></i></a>
+                                        {% if user.id != current_user.id %}
+                                        <form action="{{ url_for('delete_user', user_id=user.id) }}" method="POST" onsubmit="return confirm('آیا از حذف کاربر {{ user.username }} اطمینان دارید؟');">
+                                            <button type="submit" class="btn btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <label>نام کاربری (ایمیل)<input type="email" name="username" required></label>
-            <label>رمز عبور<input type="password" name="password" required></label>
-            <label for="role">نقش کاربر</label>
-            <select name="role" id="role-select" required onchange="toggleDepartmentSelect()">
-                <option value="counselor">مشاور (Counselor)</option>
-                <option value="operator">اپراتور بخش (Operator)</option>
-                <option value="admin">مدیر (Admin)</option>
-            </select>
-            <div id="department-select-wrapper" style="display: none;">
-                <label for="department_id">انتخاب بخش برای اپراتور</label>
-                <select name="department_id" id="department-select">
-                    <option value="" disabled selected>یک بخش را انتخاب کنید</option>
-                    {% for department in departments %}<option value="{{ department.id }}">{{ department.name }}</option>{% endfor %}
-                </select>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-header"><h4 class="my-0 fw-normal">ایجاد کاربر جدید</h4></div>
+            <div class="card-body">
+                <form action="{{ url_for('add_user') }}" method="POST">
+                    <div class="mb-3"><label class="form-label">نام</label><input type="text" name="first_name" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">نام خانوادگی</label><input type="text" name="last_name" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">نام کاربری (ایمیل)</label><input type="email" name="username" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">رمز عبور</label><input type="password" name="password" class="form-control" required></div>
+                    <div class="mb-3">
+                        <label class="form-label">نقش کاربر</label>
+                        <select name="role" id="role-select" class="form-select" required onchange="toggleDepartmentSelect()">
+                            <option value="counselor">مشاور</option><option value="operator">اپراتور بخش</option><option value="admin">مدیر</option>
+                        </select>
+                    </div>
+                    <div id="department-select-wrapper" class="mb-3" style="display: none;">
+                        <label class="form-label">انتخاب بخش برای اپراتور</label>
+                        <select name="department_id" id="department-select" class="form-select">
+                            <option value="" disabled selected>یک بخش را انتخاب کنید</option>
+                            {% for department in departments %}<option value="{{ department.id }}">{{ department.name }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">ایجاد کاربر</button>
+                </form>
             </div>
-            <button type="submit">ایجاد کاربر</button>
-        </form>
-    </article>
-    <article>
-        <header><h3>لیست کاربران سیستم</h3></header>
-        <figure><table role="grid">
-            <thead><tr><th>نام</th><th>نام کاربری</th><th>نقش</th><th>بخش</th><th>عملیات</th></tr></thead>
-            <tbody>
-            {% for user in users %}
-                <tr>
-                    <td>{{ user.first_name }} {{ user.last_name }}</td>
-                    <td>{{ user.username }}</td>
-                    <td>{{ user.role }}</td>
-                    <td>{{ user.department.name if user.department else '---' }}</td>
-                    <td><div class="grid" style="grid-template-columns: 1fr 1fr; margin: 0;">
-                        <a href="{{ url_for('edit_user', user_id=user.id) }}" role="button" class="outline" style="--padding-block: 0.25rem;">ویرایش</a>
-                        {% if user.id != current_user.id %}
-                        <form action="{{ url_for('delete_user', user_id=user.id) }}" method="POST" onsubmit="return confirm('آیا از حذف کاربر {{ user.username }} اطمینان دارید؟');" style="margin: 0;">
-                            <button type="submit" class="secondary outline" style="--padding-block: 0.25rem;">حذف</button>
-                        </form>
-                        {% endif %}
-                    </div></td>
-                </tr>
-            {% endfor %}
-            </tbody>
-        </table></figure>
-    </article>
+        </div>
+    </div>
 </div>
 <script>
     function toggleDepartmentSelect() {
@@ -58,11 +68,9 @@
         var deptWrapper = document.getElementById('department-select-wrapper');
         var deptSelect = document.getElementById('department-select');
         if (roleSelect.value === 'operator') {
-            deptWrapper.style.display = 'block';
-            deptSelect.required = true;
+            deptWrapper.style.display = 'block'; deptSelect.required = true;
         } else {
-            deptWrapper.style.display = 'none';
-            deptSelect.required = false;
+            deptWrapper.style.display = 'none'; deptSelect.required = false;
         }
     }
     document.addEventListener('DOMContentLoaded', toggleDepartmentSelect);
