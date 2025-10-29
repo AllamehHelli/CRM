@@ -5,11 +5,11 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 from datetime import datetime
-# --- کتابخانه‌های جدید و صحیح برای تاریخ ---
 import jdatetime
 import pytz
 
 app = Flask(__name__)
+# ... (تمام تنظیمات و مدل‌ها دقیقاً مثل قبل) ...
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a-very-secret-key-that-should-be-changed')
 db_url = os.environ.get("DATABASE_URL")
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url.replace("postgres://", "postgresql://")
@@ -18,16 +18,25 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# --- تابع تبدیل تاریخ با استفاده از jdatetime ---
 def to_shamsi(gregorian_datetime):
-    if gregorian_datetime is None:
-        return ""
+    if gregorian_datetime is None: return ""
     tehran_tz = pytz.timezone("Asia/Tehran")
     local_time = gregorian_datetime.astimezone(tehran_tz)
     jalali_datetime = jdatetime.datetime.fromgregorian(datetime=local_time)
     return jalali_datetime.strftime('%Y/%m/%d - %H:%M')
-
 app.jinja_env.filters['shamsi'] = to_shamsi
+
+# --- تابع جدید برای ترجمه و رنگ‌بندی وضعیت ---
+def get_status_display(status_en):
+    statuses = {
+        "New": ("جدید", "secondary"),
+        "In Progress": ("در حال بررسی", "primary"),
+        "Closed": ("بسته شده", "success"),
+    }
+    return statuses.get(status_en, (status_en, "dark"))
+
+# ثبت تابع به عنوان یک متغیر گلوبال در Jinja2
+app.jinja_env.globals.update(get_status_display=get_status_display)
 
 def admin_required(f):
     @wraps(f)
@@ -35,8 +44,6 @@ def admin_required(f):
         if not current_user.role == 'admin': abort(403)
         return f(*args, **kwargs)
     return decorated_function
-
-# --- مدل‌ها (بدون تغییر) ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
@@ -49,13 +56,11 @@ class User(UserMixin, db.Model):
     comments = db.relationship('Comment', backref='author', lazy=True)
     def set_password(self, password): self.password_hash = generate_password_hash(password)
     def check_password(self, password): return check_password_hash(self.password_hash, password)
-
 class Department(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
     tickets = db.relationship('Ticket', backref='department', lazy=True)
     operators = db.relationship('User', backref='department', lazy=True)
-
 class Ticket(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     student_code = db.Column(db.String(20), nullable=False)
@@ -67,7 +72,6 @@ class Ticket(db.Model):
     department_id = db.Column(db.Integer, db.ForeignKey('department.id'), nullable=False)
     creator_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     comments = db.relationship('Comment', backref='ticket', lazy=True, cascade="all, delete-orphan")
-
 class Comment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     content = db.Column(db.Text, nullable=False)
@@ -75,11 +79,11 @@ class Comment(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     ticket_id = db.Column(db.Integer, db.ForeignKey('ticket.id'), nullable=False)
 
-# ... (تمام مسیرها و توابع دیگر دقیقاً مانند قبل باقی می‌مانند) ...
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+# ... (تمام مسیرها دقیقاً مانند قبل باقی می‌مانند) ...
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if User.query.first() is None: return redirect(url_for('register_first_admin'))
@@ -116,7 +120,7 @@ def index():
         tickets = Ticket.query.order_by(Ticket.created_at.desc()).all()
     elif current_user.role == 'operator':
         tickets = Ticket.query.filter_by(department_id=current_user.department_id).order_by(Ticket.created_at.desc()).all()
-    else: # counselor
+    else:
         tickets = Ticket.query.filter_by(creator_id=current_user.id).order_by(Ticket.created_at.desc()).all()
     return render_template('index.html', tickets=tickets, departments=departments)
 
