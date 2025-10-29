@@ -5,11 +5,11 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 from datetime import datetime
-from jalali_date import date2jalali, datetime2jalali
+# --- کتابخانه‌های جدید و صحیح برای تاریخ ---
+import jdatetime
 import pytz
 
 app = Flask(__name__)
-# ... (تمام تنظیمات اولیه بدون تغییر) ...
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a-very-secret-key-that-should-be-changed')
 db_url = os.environ.get("DATABASE_URL")
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url.replace("postgres://", "postgresql://")
@@ -18,19 +18,17 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# --- تابع تبدیل تاریخ به شمسی برای استفاده در تمام صفحات ---
+# --- تابع تبدیل تاریخ با استفاده از jdatetime ---
 def to_shamsi(gregorian_datetime):
     if gregorian_datetime is None:
         return ""
     tehran_tz = pytz.timezone("Asia/Tehran")
     local_time = gregorian_datetime.astimezone(tehran_tz)
-    jalali_datetime = datetime2jalali(local_time)
+    jalali_datetime = jdatetime.datetime.fromgregorian(datetime=local_time)
     return jalali_datetime.strftime('%Y/%m/%d - %H:%M')
 
-# ثبت تابع به عنوان فیلتر Jinja2
 app.jinja_env.filters['shamsi'] = to_shamsi
 
-# ... (دکوراتور admin_required بدون تغییر) ...
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -38,7 +36,7 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# --- مدل‌ها با ستون‌های تاریخ ---
+# --- مدل‌ها (بدون تغییر) ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
@@ -70,7 +68,6 @@ class Ticket(db.Model):
     creator_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     comments = db.relationship('Comment', backref='ticket', lazy=True, cascade="all, delete-orphan")
 
-# --- مدل جدید برای کامنت‌ها ---
 class Comment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     content = db.Column(db.Text, nullable=False)
@@ -78,7 +75,7 @@ class Comment(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     ticket_id = db.Column(db.Integer, db.ForeignKey('ticket.id'), nullable=False)
 
-# ... (تمام مسیرهای دیگر تا index بدون تغییر) ...
+# ... (تمام مسیرها و توابع دیگر دقیقاً مانند قبل باقی می‌مانند) ...
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -140,24 +137,18 @@ def ticket_detail(ticket_id):
     if not (is_admin or is_creator or is_operator): abort(403)
     return render_template('ticket_detail.html', ticket=ticket)
 
-# --- مسیر جدید برای ثبت کامنت ---
 @app.route('/ticket/<int:ticket_id>/comment', methods=['POST'])
 @login_required
 def add_comment(ticket_id):
     ticket = Ticket.query.get_or_404(ticket_id)
     is_admin = current_user.role == 'admin'
     is_operator = (current_user.role == 'operator' and ticket.department_id == current_user.department_id)
-    if not (is_admin or is_operator):
-        abort(403) # فقط ادمین و اپراتور بخش می‌توانند کامنت بگذارند
-    
+    if not (is_admin or is_operator): abort(403)
     content = request.form.get('content')
     if content:
         new_comment = Comment(content=content, user_id=current_user.id, ticket_id=ticket.id)
-        db.session.add(new_comment)
-        db.session.commit()
+        db.session.add(new_comment); db.session.commit()
     return redirect(url_for('ticket_detail', ticket_id=ticket_id))
-
-# ... (تمام مسیرهای دیگر بدون تغییر تا انتها) ...
 
 @app.route('/ticket/<int:ticket_id>/edit', methods=['GET', 'POST'])
 @login_required
