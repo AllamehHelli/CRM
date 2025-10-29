@@ -12,6 +12,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = db_url.replace("postgres://", "postgresq
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
+# ... (تمام مدل‌ها و تنظیمات LoginManager بدون تغییر باقی می‌مانند) ...
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -32,12 +33,8 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256))
     role = db.Column(db.String(20), default='counselor', nullable=False)
     created_tickets = db.relationship('Ticket', backref='creator', lazy=True, cascade="all, delete-orphan")
-
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+    def set_password(self, password): self.password_hash = generate_password_hash(password)
+    def check_password(self, password): return check_password_hash(self.password_hash, password)
 
 class Department(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -57,12 +54,11 @@ class Ticket(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+# --- تمام مسیرهای قبلی تا اینجا بدون تغییر هستند ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if User.query.first() is None:
-        return redirect(url_for('register_first_admin'))
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
+    if User.query.first() is None: return redirect(url_for('register_first_admin'))
+    if current_user.is_authenticated: return redirect(url_for('index'))
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form['username']).first()
         if user and user.check_password(request.form['password']):
@@ -73,8 +69,7 @@ def login():
 
 @app.route('/register_first_admin', methods=['GET', 'POST'])
 def register_first_admin():
-    if User.query.first() is not None:
-        return redirect(url_for('login'))
+    if User.query.first() is not None: return redirect(url_for('login'))
     if request.method == 'POST':
         new_user = User(username=request.form['username'], role='admin')
         new_user.set_password(request.form['password'])
@@ -116,6 +111,32 @@ def ticket_detail(ticket_id):
         abort(403)
     return render_template('ticket_detail.html', ticket=ticket)
 
+# --- مسیرهای جدید برای ویرایش تیکت ---
+
+@app.route('/ticket/<int:ticket_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_ticket(ticket_id):
+    ticket = Ticket.query.get_or_404(ticket_id)
+    # فقط سازنده تیکت یا ادمین اجازه ویرایش دارند
+    if current_user.role != 'admin' and ticket.creator_id != current_user.id:
+        abort(403)
+    
+    if request.method == 'POST':
+        # دریافت اطلاعات جدید از فرم و به‌روزرسانی تیکت
+        ticket.student_code = request.form['student_code']
+        ticket.title = request.form['title']
+        ticket.department_id = request.form['department_id']
+        ticket.description = request.form['description']
+        db.session.commit()
+        flash('تیکت با موفقیت به‌روزرسانی شد.', 'success')
+        return redirect(url_for('ticket_detail', ticket_id=ticket.id))
+
+    # برای درخواست GET، فرم ویرایش را با اطلاعات فعلی نمایش می‌دهیم
+    departments = Department.query.all()
+    return render_template('edit_ticket.html', ticket=ticket, departments=departments)
+
+
+# --- مسیرهای مدیریتی (بدون تغییر) ---
 @app.route('/ticket/<int:ticket_id>/update', methods=['POST'])
 @login_required
 @admin_required
@@ -135,7 +156,6 @@ def delete_ticket(ticket_id):
     flash(f'تیکت شماره {ticket.id} حذف شد.', 'success')
     return redirect(url_for('index'))
 
-# --- مسیرهای جدید و امن برای مدیریت کاربران ---
 @app.route('/manage_users')
 @login_required
 @admin_required
@@ -173,7 +193,6 @@ def delete_user(user_id):
     flash(f'کاربر "{user_to_delete.username}" با موفقیت حذف شد.', 'success')
     return redirect(url_for('manage_users'))
 
-# --- راه‌اندازی اولیه ---
 def create_default_departments():
     default_deps = ['کتابخوان', 'بازارهوشمند', 'آموزش', 'آزمون‌ها', 'عمومی']
     for dep_name in default_deps:
