@@ -4,7 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
-from datetime import datetime
+from datetime import datetime, timedelta
 import jdatetime
 import pytz
 import pandas as pd
@@ -84,33 +84,6 @@ class Ticket(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-@app.route('/find_student')
-@login_required
-def find_student():
-    search_term = request.args.get('term', '')
-    if not search_term:
-        return jsonify(None)
-
-    student = Student.query.filter(
-        or_(
-            Student.national_id == search_term,
-            Student.student_mobile == search_term,
-            Student.helli_code == search_term
-        )
-    ).first()
-
-    if student:
-        return jsonify({
-            'id': student.id,
-            'first_name': student.first_name,
-            'last_name': student.last_name,
-            'helli_code': student.helli_code,
-            'grade': student.grade,
-            'student_mobile': student.student_mobile,
-            'parent_mobile': student.parent_mobile
-        })
-    return jsonify(None)
-
 @app.route('/')
 @login_required
 def index():
@@ -123,59 +96,57 @@ def index():
         tickets = Ticket.query.filter_by(creator_id=current_user.id).order_by(Ticket.created_at.desc()).all()
     return render_template('index.html', tickets=tickets, departments=departments)
 
+@app.route('/find_student')
+@login_required
+def find_student():
+    search_term = request.args.get('term', '')
+    if not search_term or len(search_term) < 3: return jsonify(None)
+    student = Student.query.filter(or_(Student.national_id == search_term, Student.student_mobile == search_term, Student.helli_code == search_term)).first()
+    if student:
+        return jsonify({'id': student.id, 'first_name': student.first_name, 'last_name': student.last_name, 'helli_code': student.helli_code, 'grade': student.grade, 'student_mobile': student.student_mobile, 'parent_mobile': student.parent_mobile, 'national_id': student.national_id})
+    return jsonify(None)
+
 @app.route('/create', methods=['POST'])
 @login_required
 def create():
-    national_id = request.form.get('national_id')
-    student_mobile = request.form.get('student_mobile')
     student_id = request.form.get('student_id')
-    
     student = None
-    if student_id:
-        student = Student.query.get(student_id)
-    
+    if student_id: student = Student.query.get(student_id)
     if not student:
-        if national_id:
-            student = Student.query.filter_by(national_id=national_id).first()
-        if not student and student_mobile:
-            student = Student.query.filter_by(student_mobile=student_mobile).first()
-
-    if student:
-        # آپدیت اطلاعات دانش‌آموز موجود در صورت نیاز
-        student.first_name = request.form['first_name']
-        student.last_name = request.form['last_name']
-        student.grade = request.form.get('grade')
-        student.parent_mobile = request.form.get('parent_mobile')
-        # ... سایر فیلدها ...
-    else:
-        # ایجاد دانش‌آموز جدید
-        student = Student(
-            national_id=national_id,
-            student_mobile=student_mobile,
-            first_name=request.form['first_name'],
-            last_name=request.form['last_name'],
-            helli_code=request.form.get('helli_code'),
-            grade=request.form.get('grade'),
-            parent_mobile=request.form.get('parent_mobile')
-        )
+        student = Student(national_id=request.form.get('national_id') or None, student_mobile=request.form.get('student_mobile') or None, first_name=request.form['first_name'], last_name=request.form['last_name'], helli_code=request.form.get('helli_code') or None, grade=request.form.get('grade'), parent_mobile=request.form.get('parent_mobile'))
         db.session.add(student)
-    
-    db.session.flush() # برای گرفتن ID دانش‌آموز قبل از کامیت نهایی
-    
-    new_ticket = Ticket(
-        title=request.form['title'],
-        description=request.form['description'],
-        department_id=request.form['department_id'],
-        creator_id=current_user.id,
-        student_id=student.id
-    )
+        db.session.flush()
+    new_ticket = Ticket(title=request.form['title'], description=request.form['description'], department_id=request.form['department_id'], creator_id=current_user.id, student_id=student.id)
     db.session.add(new_ticket)
     db.session.commit()
-    flash('تیکت با موفقیت ثبت شد.', 'success')
     return redirect(url_for('index'))
 
-# ... (تمام مسیرهای دیگر بدون تغییر باقی می‌مانند)
-# فقط مسیرهای ticket_detail و index را برای نمایش اطلاعات جدید دانش‌آموز به‌روز می‌کنیم
+@app.route('/reports')
+@login_required
+@admin_required
+def reports():
+    end_date_str = request.args.get('end_date', jdatetime.datetime.now().strftime('%Y/%m/%d'))
+    start_date_str = request.args.get('start_date', (jdatetime.datetime.now() - jdatetime.timedelta(days=30)).strftime('%Y/%m/%d'))
+    start_date = jdatetime.datetime.strptime(start_date_str, '%Y/%m/%d').togregorian()
+    end_date = jdatetime.datetime.strptime(end_date_str, '%Y/%m/%d').togregorian().replace(hour=23, minute=59, second=59)
+    base_query = Ticket.query.filter(Ticket.created_at.between(start_date, end_date))
+    total_tickets = base_query.count()
+    closed_tickets = base_query.filter(Ticket.status == 'Closed').count()
+    open_tickets = total_tickets - closed_tickets
+    closed_tickets_with_time = base_query.filter(Ticket.status == 'Closed', Ticket.updated_at.isnot(None)).all()
+    total_resolution_time = sum([(t.updated_at - t.created_at).total_seconds() for t in closed_tickets_with_time], 0)
+    avg_resolution_seconds = total_resolution_time / len(closed_tickets_with_time) if closed_tickets_with_time else 0
+    avg_resolution_days = round(avg_resolution_seconds / (24 * 3600), 1)
+    tickets_by_dept = db.session.query(Department.name, func.count(Ticket.id)).join(Ticket).filter(Ticket.created_at.between(start_date, end_date)).group_by(Department.name).all()
+    dept_chart_labels = [d[0] for d in tickets_by_dept]
+    dept_chart_data = [d[1] for d in tickets_by_dept]
+    tickets_by_status = db.session.query(Ticket.status, func.count(Ticket.id)).filter(Ticket.created_at.between(start_date, end_date)).group_by(Ticket.status).all()
+    status_chart_labels = [get_status_display(s[0])[0] for s in tickets_by_status]
+    status_chart_data = [s[1] for s in tickets_by_status]
+    counselor_performance = db.session.query(User.first_name, User.last_name, func.count(Ticket.id)).join(Ticket, User.id == Ticket.creator_id).filter(User.role == 'counselor', Ticket.created_at.between(start_date, end_date)).group_by(User.id).all()
+    department_performance = db.session.query(Department.name, func.count(Ticket.id).label('total'), func.sum(case((Ticket.status == 'Closed', 1), else_=0)).label('closed')).join(Ticket).filter(Ticket.created_at.between(start_date, end_date)).group_by(Department.name).all()
+    return render_template('reports.html', start_date=start_date_str, end_date=end_date_str, total_tickets=total_tickets, closed_tickets=closed_tickets, open_tickets=open_tickets, avg_resolution_days=avg_resolution_days, dept_chart_labels=dept_chart_labels, dept_chart_data=dept_chart_data, status_chart_labels=status_chart_labels, status_chart_data=status_chart_data, counselor_performance=counselor_performance, department_performance=department_performance)
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if User.query.first() is None: return redirect(url_for('register_first_admin'))
@@ -274,7 +245,6 @@ def create_default_departments():
         if not Department.query.filter_by(name=dep_name).first():
             db.session.add(Department(name=dep_name))
     db.session.commit()
-
 with app.app_context():
     db.create_all()
     create_default_departments()
