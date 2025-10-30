@@ -2,92 +2,61 @@
 {% block title %}داشبورد اصلی{% endblock %}
 
 {% block content %}
-
-{% if current_user.role == 'admin' %}
-<div class="card shadow-sm mb-4">
-    <div class="card-header">
-        <h5 class="my-0"><i class="bi bi-funnel"></i> فیلتر و جستجو</h5>
-    </div>
-    <div class="card-body">
-        <form method="GET" action="{{ url_for('index') }}" id="filter-form">
-            <div class="row g-3">
-                <div class="col-md-3">
-                    <label class="form-label">بخش</label>
-                    <select name="department" class="form-select">
-                        <option value="">همه</option>
-                        {% for d in departments %}
-                            <option value="{{ d.id }}" {% if request.args.get('department') == d.id|string %}selected{% endif %}>{{ d.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">ایجاد کننده</label>
-                    <select name="creator" class="form-select">
-                        <option value="">همه</option>
-                        {% for c in creators %}
-                            <option value="{{ c.id }}" {% if request.args.get('creator') == c.id|string %}selected{% endif %}>{{ c.first_name }} {{ c.last_name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">وضعیت</label>
-                    <select name="status" class="form-select">
-                        <option value="">همه</option>
-                        <option value="New" {% if request.args.get('status') == 'New' %}selected{% endif %}>جدید</option>
-                        <option value="In Progress" {% if request.args.get('status') == 'In Progress' %}selected{% endif %}>در حال بررسی</option>
-                        <option value="Closed" {% if request.args.get('status') == 'Closed' %}selected{% endif %}>بسته شده</option>
-                    </select>
-                </div>
-            </div>
-            <div class="row g-3 mt-2">
-                <div class="col-md-3">
-                    <label class="form-label">از تاریخ</label>
-                    <input type="text" name="start_date" class="form-control datepicker" value="{{ request.args.get('start_date', '') }}" autocomplete="off">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">تا تاریخ</label>
-                    <input type="text" name="end_date" class="form-control datepicker" value="{{ request.args.get('end_date', '') }}" autocomplete="off">
-                </div>
-                <div class="col-md-6 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary me-2">اعمال فیلتر</button>
-                    <a href="{{ url_for('index') }}" class="btn btn-secondary me-2">پاک کردن</a>
-                    <a id="export-btn" href="{{ url_for('export_excel') }}" class="btn btn-success"><i class="bi bi-file-earmark-excel"></i> خروجی اکسل</a>
-                </div>
-            </div>
-        </form>
-    </div>
-</div>
-{% endif %}
-
 {% if current_user.role != 'operator' %}
 <div class="card shadow-sm mb-4">
     <div class="card-header"><h4 class="my-0 fw-normal">ثبت تیکت جدید</h4></div>
     <div class="card-body">
-        <form action="{{ url_for('create') }}" method="POST">
-            <div class="row mb-3"><div class="col-md-6"><label for="student_code" class="form-label">حلی کد دانش‌آموز</label><input type="text" class="form-control" id="student_code" name="student_code" required></div><div class="col-md-6"><label for="title" class="form-label">عنوان مشکل</label><input type="text" class="form-control" id="title" name="title" required></div></div>
-            <div class="mb-3"><label for="department_id" class="form-label">بخش مربوطه</label><select class="form-select" id="department_id" name="department_id" required><option value="" disabled selected>یک بخش را انتخاب کنید...</option>{% for department in departments %}<option value="{{ department.id }}">{{ department.name }}</option>{% endfor %}</select></div>
-            <div class="mb-3"><label for="description" class="form-label">شرح کامل مشکل</label><textarea class="form-control" id="description" name="description" rows="4" required></textarea></div>
-            <button type="submit" class="btn btn-primary">ثبت تیکت</button>
+        <form action="{{ url_for('create') }}" method="POST" id="create-ticket-form">
+            <input type="hidden" name="student_id" id="student_id">
+            
+            <fieldset>
+                <legend>اطلاعات دانش‌آموز</legend>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="search_term" class="form-label">جستجو (کد ملی، حلی کد، موبایل)</label>
+                        <input type="text" class="form-control" id="search_term" placeholder="برای جستجو تایپ کنید...">
+                    </div>
+                    <div class="col-md-4"><label for="national_id" class="form-label">کد ملی</label><input type="text" class="form-control" id="national_id" name="national_id"></div>
+                    <div class="col-md-4"><label for="helli_code" class="form-label">حلی کد</label><input type="text" class="form-control" id="helli_code" name="helli_code"></div>
+                    <div class="col-md-4"><label for="first_name" class="form-label">نام</label><input type="text" class="form-control" id="first_name" name="first_name" required></div>
+                    <div class="col-md-4"><label for="last_name" class="form-label">نام خانوادگی</label><input type="text" class="form-control" id="last_name" name="last_name" required></div>
+                    <div class="col-md-4"><label for="grade" class="form-label">پایه تحصیلی</label><input type="text" class="form-control" id="grade" name="grade"></div>
+                    <div class="col-md-6"><label for="student_mobile" class="form-label">موبایل دانش‌آموز</label><input type="text" class="form-control" id="student_mobile" name="student_mobile"></div>
+                    <div class="col-md-6"><label for="parent_mobile" class="form-label">موبایل ولی</label><input type="text" class="form-control" id="parent_mobile" name="parent_mobile"></div>
+                </div>
+            </fieldset>
+
+            <hr class="my-4">
+
+            <fieldset>
+                <legend>اطلاعات تیکت</legend>
+                <div class="row g-3">
+                    <div class="col-md-6"><label for="title" class="form-label">عنوان مشکل</label><input type="text" class="form-control" id="title" name="title" required></div>
+                    <div class="col-md-6"><label for="department_id" class="form-label">بخش مربوطه</label><select class="form-select" id="department_id" name="department_id" required><option value="" disabled selected>یک بخش را انتخاب کنید...</option>{% for department in departments %}<option value="{{ department.id }}">{{ department.name }}</option>{% endfor %}</select></div>
+                    <div class="col-12"><label for="description" class="form-label">شرح کامل مشکل</label><textarea class="form-control" id="description" name="description" rows="4" required></textarea></div>
+                </div>
+            </fieldset>
+
+            <button type="submit" class="btn btn-primary mt-4">ثبت تیکت</button>
         </form>
     </div>
 </div>
 {% endif %}
 
-<h2 class="mt-4">{% if current_user.role == 'admin' %}لیست تیکت‌ها{% elif current_user.role == 'operator' %}تیکت‌های بخش {{ current_user.department.name }}{% else %}تیکت‌های من{% endif %}</h2>
+<h2 class="mt-4">{% if current_user.role == 'admin' %}همه تیکت‌ها{% elif current_user.role == 'operator' %}تیکت‌های بخش {{ current_user.department.name }}{% else %}تیکت‌های من{% endif %}</h2>
 {% if tickets %}
 <div class="table-responsive">
     <table class="table table-striped table-hover align-middle">
-        <thead class="table-light"><tr><th>ID</th><th>عنوان</th><th>بخش</th><th>وضعیت</th><th>تاریخ ایجاد</th><th>ایجاد کننده</th></tr></thead>
+        <thead class="table-light"><tr><th>ID</th><th>دانش‌آموز</th><th>عنوان</th><th>بخش</th><th>وضعیت</th><th>تاریخ ایجاد</th></tr></thead>
         <tbody>
         {% for ticket in tickets %}
             <tr>
                 <td>{{ ticket.id }}</td>
+                <td>{{ ticket.student.first_name }} {{ ticket.student.last_name }}</td>
                 <td><a href="{{ url_for('ticket_detail', ticket_id=ticket.id) }}">{{ ticket.title }}</a></td>
                 <td>{{ ticket.department.name }}</td>
-                {% set status_text, status_color = get_status_display(ticket.status) %}
-                <td><span class="badge bg-{{ status_color }}">{{ status_text }}</span></td>
+                <td><span class="badge bg-secondary">{{ ticket.status }}</span></td>
                 <td>{{ ticket.created_at | shamsi }}</td>
-                <td>{{ ticket.creator.first_name }}</td>
             </tr>
         {% endfor %}
         </tbody>
@@ -96,35 +65,39 @@
 {% else %}
 <div class="alert alert-info">هیچ تیکتی برای نمایش وجود ندارد.</div>
 {% endif %}
-
 {% endblock %}
 
 {% block scripts %}
 <script type="text/javascript">
-    $(document).ready(function() {
-        $(".datepicker").persianDatepicker({
-            format: 'YYYY/MM/DD',
-            autoClose: true,
-            observer: true,
-            initialValue: false
-        });
-        
-        function updateExportLink() {
-            var form = document.getElementById('filter-form');
-            if (form) {
-                var queryParams = new URLSearchParams(new FormData(form)).toString();
-                var exportLink = document.getElementById('export-btn');
-                exportLink.href = "{{ url_for('export_excel') }}" + "?" + queryParams;
-            }
+$(document).ready(function() {
+    $('#search_term').on('blur', function() {
+        const term = $(this).val();
+        if (term.length > 3) {
+            $.ajax({
+                url: "{{ url_for('find_student') }}",
+                data: { term: term },
+                success: function(data) {
+                    if (data) {
+                        $('#student_id').val(data.id);
+                        $('#national_id').val(data.national_id || '');
+                        $('#helli_code').val(data.helli_code || '');
+                        $('#first_name').val(data.first_name);
+                        $('#last_name').val(data.last_name);
+                        $('#grade').val(data.grade || '');
+                        $('#student_mobile').val(data.student_mobile || '');
+                        $('#parent_mobile').val(data.parent_mobile || '');
+                        
+                        // Optional: make fields readonly
+                        // $('#first_name, #last_name').prop('readonly', true);
+                    } else {
+                        // Clear fields if no student is found
+                        $('#student_id').val('');
+                        // $('#first_name, #last_name').prop('readonly', false);
+                    }
+                }
+            });
         }
-        
-        // به‌روزرسانی لینک هنگام تغییر هر فیلتر
-        $('#filter-form').on('change', function() {
-            updateExportLink();
-        });
-        
-        // به‌روزرسانی اولیه در زمان بارگذاری صفحه
-        updateExportLink();
     });
+});
 </script>
 {% endblock %}
