@@ -138,7 +138,7 @@ def create():
     db.session.add(new_ticket)
     db.session.commit()
     return redirect(url_for('index'))
-    
+
 @app.route('/reports')
 @login_required
 @admin_required
@@ -148,22 +148,38 @@ def reports():
     start_date = jdatetime.datetime.strptime(start_date_str, '%Y/%m/%d').togregorian()
     end_date = jdatetime.datetime.strptime(end_date_str, '%Y/%m/%d').togregorian().replace(hour=23, minute=59, second=59)
     base_query = Ticket.query.filter(Ticket.created_at.between(start_date, end_date))
-    total_tickets = base_query.count()
-    closed_tickets = base_query.filter(Ticket.status == 'Closed').count()
+    total_tickets, closed_tickets = base_query.count(), base_query.filter(Ticket.status == 'Closed').count()
     open_tickets = total_tickets - closed_tickets
     closed_tickets_with_time = base_query.filter(Ticket.status == 'Closed', Ticket.updated_at.isnot(None)).all()
     total_resolution_time = sum([(t.updated_at - t.created_at).total_seconds() for t in closed_tickets_with_time], 0)
     avg_resolution_seconds = total_resolution_time / len(closed_tickets_with_time) if closed_tickets_with_time else 0
     avg_resolution_days = round(avg_resolution_seconds / (24 * 3600), 1)
     tickets_by_dept = db.session.query(Department.name, func.count(Ticket.id)).join(Ticket).filter(Ticket.created_at.between(start_date, end_date)).group_by(Department.name).all()
-    dept_chart_labels = [d[0] for d in tickets_by_dept]
-    dept_chart_data = [d[1] for d in tickets_by_dept]
+    dept_chart_labels, dept_chart_data = [d[0] for d in tickets_by_dept], [d[1] for d in tickets_by_dept]
     tickets_by_status = db.session.query(Ticket.status, func.count(Ticket.id)).filter(Ticket.created_at.between(start_date, end_date)).group_by(Ticket.status).all()
-    status_chart_labels = [get_status_display(s[0])[0] for s in tickets_by_status]
-    status_chart_data = [s[1] for s in tickets_by_status]
+    status_chart_labels, status_chart_data = [get_status_display(s[0])[0] for s in tickets_by_status], [s[1] for s in tickets_by_status]
     counselor_performance = db.session.query(User.first_name, User.last_name, func.count(Ticket.id)).join(Ticket, User.id == Ticket.creator_id).filter(User.role == 'counselor', Ticket.created_at.between(start_date, end_date)).group_by(User.id).all()
     department_performance = db.session.query(Department.name, func.count(Ticket.id).label('total'), func.sum(case((Ticket.status == 'Closed', 1), else_=0)).label('closed')).join(Ticket).filter(Ticket.created_at.between(start_date, end_date)).group_by(Department.name).all()
     return render_template('reports.html', start_date=start_date_str, end_date=end_date_str, total_tickets=total_tickets, closed_tickets=closed_tickets, open_tickets=open_tickets, avg_resolution_days=avg_resolution_days, dept_chart_labels=dept_chart_labels, dept_chart_data=dept_chart_data, status_chart_labels=status_chart_labels, status_chart_data=status_chart_data, counselor_performance=counselor_performance, department_performance=department_performance)
+
+@app.route('/export')
+@login_required
+@admin_required
+def export_excel():
+    query = Ticket.query
+    f_department, f_creator, f_status, f_start_date, f_end_date = request.args.get('department'), request.args.get('creator'), request.args.get('status'), request.args.get('start_date'), request.args.get('end_date')
+    if f_department: query = query.filter(Ticket.department_id == f_department)
+    if f_creator: query = query.filter(Ticket.creator_id == f_creator)
+    if f_status: query = query.filter(Ticket.status == f_status)
+    if f_start_date: query = query.filter(Ticket.created_at >= jdatetime.datetime.strptime(f_start_date, '%Y/%m/%d').togregorian())
+    if f_end_date: query = query.filter(Ticket.created_at <= jdatetime.datetime.strptime(f_end_date, '%Y/%m/%d').togregorian().replace(hour=23, minute=59, second=59))
+    tickets_to_export = query.order_by(Ticket.created_at.desc()).all()
+    data = [{'شناسه': t.id, 'عنوان': t.title, 'حلی کد': t.student.helli_code, 'شرح مشکل': t.description, 'وضعیت': get_status_display(t.status)[0], 'بخش': t.department.name, 'ایجاد کننده': f"{t.creator.first_name} {t.creator.last_name}", 'تاریخ ایجاد (شمسی)': to_shamsi(t.created_at)} for t in tickets_to_export]
+    df = pd.DataFrame(data)
+    output = BytesIO()
+    df.to_excel(output, index=False, sheet_name='گزارش تیکت‌ها', engine='openpyxl')
+    output.seek(0)
+    return send_file(output, download_name='report.xlsx', as_attachment=True)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
