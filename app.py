@@ -49,6 +49,7 @@ class User(UserMixin, db.Model):
     role = db.Column(db.String(20), nullable=False)
     department_id = db.Column(db.Integer, db.ForeignKey('department.id'), nullable=True)
     created_tickets = db.relationship('Ticket', backref='creator', lazy=True, cascade="all, delete-orphan")
+    comments = db.relationship('Comment', backref='author', lazy=True)
     def set_password(self, password): self.password_hash = generate_password_hash(password)
     def check_password(self, password): return check_password_hash(self.password_hash, password)
 
@@ -68,6 +69,14 @@ class Ticket(db.Model):
     updated_at = db.Column(db.DateTime(timezone=True), onupdate=db.func.now(), server_default=db.func.now())
     department_id = db.Column(db.Integer, db.ForeignKey('department.id'), nullable=False)
     creator_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    comments = db.relationship('Comment', backref='ticket', lazy=True, cascade="all, delete-orphan")
+
+class Comment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.func.now())
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    ticket_id = db.Column(db.Integer, db.ForeignKey('ticket.id'), nullable=False)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -181,6 +190,19 @@ def ticket_detail(ticket_id):
     is_admin, is_creator, is_operator = current_user.role == 'admin', ticket.creator_id == current_user.id, (current_user.role == 'operator' and ticket.department_id == current_user.department_id)
     if not (is_admin or is_creator or is_operator): abort(403)
     return render_template('ticket_detail.html', ticket=ticket)
+
+@app.route('/ticket/<int:ticket_id>/comment', methods=['POST'])
+@login_required
+def add_comment(ticket_id):
+    ticket = Ticket.query.get_or_404(ticket_id)
+    is_admin = current_user.role == 'admin'
+    is_operator = (current_user.role == 'operator' and ticket.department_id == current_user.department_id)
+    if not (is_admin or is_operator): abort(403)
+    content = request.form.get('content')
+    if content:
+        new_comment = Comment(content=content, user_id=current_user.id, ticket_id=ticket.id)
+        db.session.add(new_comment); db.session.commit()
+    return redirect(url_for('ticket_detail', ticket_id=ticket_id))
 
 @app.route('/ticket/<int:ticket_id>/edit', methods=['GET', 'POST'])
 @login_required
