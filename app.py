@@ -129,16 +129,53 @@ def find_student():
 def create():
     student_id = request.form.get('student_id')
     student = None
-    if student_id: student = Student.query.get(student_id)
-    if not student:
-        student = Student(national_id=request.form.get('national_id') or None, student_mobile=request.form.get('student_mobile') or None, first_name=request.form['first_name'], last_name=request.form['last_name'], helli_code=request.form.get('helli_code') or None, grade=request.form.get('grade'), parent_mobile=request.form.get('parent_mobile'))
+
+    if student_id:
+        student = Student.query.get(student_id)
+    else:
+        # اگر دانش‌آموز از طریق جستجو پیدا نشده، سعی می‌کنیم بر اساس اطلاعات فرم او را پیدا یا ایجاد کنیم
+        national_id = request.form.get('national_id')
+        student_mobile = request.form.get('student_mobile')
+        if national_id:
+            student = Student.query.filter_by(national_id=national_id).first()
+        if not student and student_mobile:
+            student = Student.query.filter_by(student_mobile=student_mobile).first()
+
+    if student:
+        # اگر دانش‌آموز موجود است، اطلاعاتش را آپدیت می‌کنیم
+        student.first_name = request.form['first_name']
+        student.last_name = request.form['last_name']
+        student.grade = request.form.get('grade')
+        student.parent_mobile = request.form.get('parent_mobile')
+        # ... سایر فیلدها ...
+    else:
+        # اگر دانش‌آموز اصلاً وجود ندارد، یکی جدید می‌سازیم
+        student = Student(
+            national_id=request.form.get('national_id') or None,
+            student_mobile=request.form.get('student_mobile') or None,
+            first_name=request.form['first_name'],
+            last_name=request.form['last_name'],
+            helli_code=request.form.get('helli_code') or None,
+            grade=request.form.get('grade'),
+            parent_mobile=request.form.get('parent_mobile')
+        )
         db.session.add(student)
-        db.session.flush()
-    new_ticket = Ticket(title=request.form['title'], description=request.form['description'], department_id=request.form['department_id'], creator_id=current_user.id, student_id=student.id)
+    
+    # باید flush کنیم تا student.id در دسترس قرار گیرد
+    db.session.flush()
+    
+    new_ticket = Ticket(
+        title=request.form['title'],
+        description=request.form['description'],
+        department_id=request.form['department_id'],
+        creator_id=current_user.id,
+        student_id=student.id
+    )
     db.session.add(new_ticket)
     db.session.commit()
+    flash('تیکت با موفقیت ثبت شد.', 'success')
     return redirect(url_for('index'))
-
+    
 @app.route('/reports')
 @login_required
 @admin_required
