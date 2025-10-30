@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}داشبورد گزارش‌گیری{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">داشبورد گزارش‌گیری</h1>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('reports') }}">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">از تاریخ</label>
+                    <input type="text" name="start_date" class="form-control datepicker" value="{{ start_date }}" autocomplete="off">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">تا تاریخ</label>
+                    <input type="text" name="end_date" class="form-control datepicker" value="{{ end_date }}" autocomplete="off">
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary">اعمال فیلتر</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- کارت‌های KPI -->
+<div class="row">
+    <div class="col-md-3 mb-4"><div class="card text-white bg-primary shadow h-100"><div class="card-body"><h5 class="card-title">کل تیکت‌ها</h5><p class="card-text fs-2 fw-bold">{{ total_tickets }}</p></div></div></div>
+    <div class="col-md-3 mb-4"><div class="card text-white bg-danger shadow h-100"><div class="card-body"><h5 class="card-title">تیکت‌های باز</h5><p class="card-text fs-2 fw-bold">{{ open_tickets }}</p></div></div></div>
+    <div class="col-md-3 mb-4"><div class="card text-white bg-success shadow h-100"><div class="card-body"><h5 class="card-title">تیکت‌های حل شده</h5><p class="card-text fs-2 fw-bold">{{ closed_tickets }}</p></div></div></div>
+    <div class="col-md-3 mb-4"><div class="card text-white bg-info shadow h-100"><div class="card-body"><h5 class="card-title">میانگین زمان حل (روز)</h5><p class="card-text fs-2 fw-bold">{{ avg_resolution_days }}</p></div></div></div>
+</div>
+
+<!-- نمودارها -->
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">توزیع تیکت‌ها بر اساس بخش</div>
+            <div class="card-body"><canvas id="deptChart"></canvas></div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">توزیع تیکت‌ها بر اساس وضعیت</div>
+            <div class="card-body"><canvas id="statusChart"></canvas></div>
+        </div>
+    </div>
+</div>
+
+<!-- جداول عملکرد -->
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header">عملکرد بخش‌ها</div>
+            <div class="card-body table-responsive">
+                <table class="table table-sm"><thead><tr><th>بخش</th><th>کل تیکت‌ها</th><th>حل شده</th><th>نرخ حل</th></tr></thead>
+                <tbody>
+                {% for row in department_performance %}
+                    <tr><td>{{ row.name }}</td><td>{{ row.total }}</td><td>{{ row.closed or 0 }}</td><td>{{ "%.1f"|format((row.closed or 0) * 100 / row.total) }}%</td></tr>
+                {% endfor %}
+                </tbody></table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header">عملکرد مشاوران (تعداد تیکت ثبت شده)</div>
+            <div class="card-body table-responsive">
+                <table class="table table-sm"><thead><tr><th>نام مشاور</th><th>تعداد تیکت</th></tr></thead>
+                <tbody>
+                {% for row in counselor_performance %}
+                    <tr><td>{{ row.first_name }} {{ row.last_name }}</td><td>{{ row[2] }}</td></tr>
+                {% endfor %}
+                </tbody></table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        $(".datepicker").persianDatepicker({
+            format: 'YYYY/MM/DD',
+            autoClose: true,
+            observer: true
+        });
+
+        // نمودار بخش‌ها
+        const deptCtx = document.getElementById('deptChart').getContext('2d');
+        new Chart(deptCtx, {
+            type: 'doughnut',
+            data: {
+                labels: {{ dept_chart_labels|tojson }},
+                datasets: [{
+                    label: 'تعداد تیکت',
+                    data: {{ dept_chart_data|tojson }},
+                    backgroundColor: ['#0d6efd', '#6f42c1', '#d63384', '#fd7e14', '#198754', '#dc3545', '#ffc107'],
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        // نمودار وضعیت‌ها
+        const statusCtx = document.getElementById('statusChart').getContext('2d');
+        new Chart(statusCtx, {
+            type: 'pie',
+            data: {
+                labels: {{ status_chart_labels|tojson }},
+                datasets: [{
+                    label: 'تعداد تیکت',
+                    data: {{ status_chart_data|tojson }},
+                    backgroundColor: ['#6c757d', '#0d6efd', '#198754'],
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    });
+</script>
+{% endblock %}
