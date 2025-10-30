@@ -5,3 +5,5 @@ Flask-SQLAlchemy
 Flask-Login
 jdatetime
 pytz
+pandas
+openpyxl
