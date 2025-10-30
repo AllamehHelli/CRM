@@ -126,8 +126,6 @@ def export_excel():
     output.seek(0)
     return send_file(output, download_name='report.xlsx', as_attachment=True)
 
-# ... (تمام مسیرهای دیگر از اینجا به بعد بدون تغییر هستند) ...
-# (login, register_first_admin, logout, create, ticket_detail, edit_ticket, update_status, delete_ticket, manage_users, add_user, edit_user, delete_user)
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if User.query.first() is None: return redirect(url_for('register_first_admin'))
@@ -138,6 +136,7 @@ def login():
             login_user(user); return redirect(url_for('index'))
         flash('نام کاربری یا رمز عبور اشتباه است.', 'danger')
     return render_template('login.html')
+
 @app.route('/register_first_admin', methods=['GET', 'POST'])
 def register_first_admin():
     if User.query.first() is not None: return redirect(url_for('login'))
@@ -148,17 +147,20 @@ def register_first_admin():
         flash('کاربر ادمین با موفقیت ایجاد شد. لطفاً وارد شوید.', 'success')
         return redirect(url_for('login'))
     return render_template('register.html')
+
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
     return redirect(url_for('login'))
+
 @app.route('/create', methods=['POST'])
 @login_required
 def create():
     new_ticket = Ticket(student_code=request.form['student_code'], title=request.form['title'], description=request.form['description'], department_id=request.form['department_id'], creator_id=current_user.id)
     db.session.add(new_ticket); db.session.commit()
     return redirect(url_for('index'))
+
 @app.route('/ticket/<int:ticket_id>')
 @login_required
 def ticket_detail(ticket_id):
@@ -168,6 +170,7 @@ def ticket_detail(ticket_id):
     is_operator = (current_user.role == 'operator' and ticket.department_id == current_user.department_id)
     if not (is_admin or is_creator or is_operator): abort(403)
     return render_template('ticket_detail.html', ticket=ticket)
+
 @app.route('/ticket/<int:ticket_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_ticket(ticket_id):
@@ -179,6 +182,7 @@ def edit_ticket(ticket_id):
         return redirect(url_for('ticket_detail', ticket_id=ticket.id))
     departments = Department.query.all()
     return render_template('edit_ticket.html', ticket=ticket, departments=departments)
+
 @app.route('/ticket/<int:ticket_id>/update', methods=['POST'])
 @login_required
 def update_status(ticket_id):
@@ -188,6 +192,7 @@ def update_status(ticket_id):
     ticket.status = request.form['status']
     db.session.commit()
     return redirect(url_for('ticket_detail', ticket_id=ticket.id))
+
 @app.route('/ticket/<int:ticket_id>/delete', methods=['POST'])
 @login_required
 @admin_required
@@ -195,12 +200,14 @@ def delete_ticket(ticket_id):
     ticket = Ticket.query.get_or_404(ticket_id)
     db.session.delete(ticket); db.session.commit()
     return redirect(url_for('index'))
+
 @app.route('/manage_users')
 @login_required
 @admin_required
 def manage_users():
     users, departments = User.query.order_by(User.id).all(), Department.query.all()
     return render_template('manage_users.html', users=users, departments=departments)
+
 @app.route('/add_user', methods=['POST'])
 @login_required
 @admin_required
@@ -215,6 +222,7 @@ def add_user():
         db.session.add(new_user); db.session.commit()
         flash(f'کاربر "{username}" با موفقیت ایجاد شد.', 'success')
     return redirect(url_for('manage_users'))
+
 @app.route('/edit_user/<int:user_id>', methods=['GET', 'POST'])
 @login_required
 @admin_required
@@ -229,6 +237,7 @@ def edit_user(user_id):
         return redirect(url_for('manage_users'))
     departments = Department.query.all()
     return render_template('edit_user.html', user=user_to_edit, departments=departments)
+
 @app.route('/delete_user/<int:user_id>', methods=['POST'])
 @login_required
 @admin_required
@@ -239,12 +248,14 @@ def delete_user(user_id):
         db.session.delete(user); db.session.commit()
         flash(f'کاربر "{user.username}" حذف شد.', 'success')
     return redirect(url_for('manage_users'))
+
 def create_default_departments():
     default_deps = ['کتابخوان', 'بازارهوشمند', 'آموزش', 'آزمون‌ها', 'عمومی']
     for dep_name in default_deps:
         if not Department.query.filter_by(name=dep_name).first():
             db.session.add(Department(name=dep_name))
     db.session.commit()
+
 with app.app_context():
     db.create_all()
     create_default_departments()
