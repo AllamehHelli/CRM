@@ -1,37 +1,24 @@
 {% extends "base.html" %}
-
 {% block title %}ویرایش تیکت #{{ ticket.id }}{% endblock %}
 
 {% block content %}
-<article>
-    <header>
-        <nav>
-            <ul>
-                <li><a href="{{ url_for('ticket_detail', ticket_id=ticket.id) }}">&larr; بازگشت به جزئیات تیکت</a></li>
-            </ul>
-        </nav>
-        <h1>ویرایش تیکت #{{ ticket.id }}</h1>
-    </header>
-    <form method="POST">
-        <label for="student_code">حلی کد دانش‌آموز</label>
-        <input type="text" name="student_code" value="{{ ticket.student_code }}" required>
-
-        <label for="title">عنوان مشکل</label>
-        <input type="text" name="title" value="{{ ticket.title }}" required>
-
-        <label for="department_id">بخش مربوطه</label>
-        <select name="department_id" required>
-            {% for department in departments %}
-                <option value="{{ department.id }}" {% if department.id == ticket.department_id %}selected{% endif %}>
-                    {{ department.name }}
-                </option>
-            {% endfor %}
-        </select>
-
-        <label for="description">شرح کامل مشکل</label>
-        <textarea name="description" rows="5" required>{{ ticket.description }}</textarea>
-
-        <button type="submit">ذخیره تغییرات</button>
-    </form>
-</article>
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header"><h4 class="my-0 fw-normal">ویرایش تیکت #{{ ticket.id }}</h4></div>
+            <div class="card-body">
+                <form method="POST">
+                    <!-- این بخش نیاز به بازنویسی کامل دارد -->
+                    <p class="text-danger">صفحه ویرایش تیکت در حال حاضر با سیستم جدید دانش‌آموزان سازگار نیست و نیاز به بازنویسی دارد.</p>
+                    <div class="mb-3"><label class="form-label">عنوان</label><input type="text" name="title" class="form-control" value="{{ ticket.title }}" required></div>
+                    <div class="mb-3"><label class="form-label">بخش</label><select name="department_id" class="form-select" required>{% for d in departments %}<option value="{{ d.id }}" {% if ticket.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></div>
+                    <div class="mb-3"><label class="form-label">توضیحات</label><textarea name="description" class="form-control" rows="5" required>{{ ticket.description }}</textarea></div>
+                    <hr>
+                    <button type="submit" class="btn btn-primary">ذخیره تغییرات</button>
+                    <a href="{{ url_for('ticket_detail', ticket_id=ticket.id) }}" class="btn btn-secondary">انصراف</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
