@@ -59,7 +59,7 @@
                 <table class="table table-sm"><thead><tr><th>بخش</th><th>کل تیکت‌ها</th><th>حل شده</th><th>نرخ حل</th></tr></thead>
                 <tbody>
                 {% for row in department_performance %}
-                    <tr><td>{{ row.name }}</td><td>{{ row.total }}</td><td>{{ row.closed or 0 }}</td><td>{{ "%.1f"|format((row.closed or 0) * 100 / row.total) }}%</td></tr>
+                    <tr><td>{{ row.name }}</td><td>{{ row.total }}</td><td>{{ row.closed or 0 }}</td><td>{{ "%.1f"|format((row.closed or 0) * 100 / row.total) if row.total > 0 else 0.0 }}%</td></tr>
                 {% endfor %}
                 </tbody></table>
             </div>
