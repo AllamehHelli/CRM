@@ -84,10 +84,13 @@
 {% block scripts %}
 <script>
     $(document).ready(function() {
+        // --- کد اصلاح شده برای تقویم ---
         $(".datepicker").persianDatepicker({
             format: 'YYYY/MM/DD',
             autoClose: true,
-            observer: true
+            observer: true,
+            // این خط مهم از مقداردهی اولیه اشتباه جلوگیری می‌کند
+            initialValue: false 
         });
 
         // نمودار بخش‌ها
