@@ -1,6 +1,5 @@
 {% extends "base.html" %}
 {% block title %}تیکت #{{ ticket.id }} - {{ ticket.title }}{% endblock %}
-
 {% block content %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
@@ -13,8 +12,10 @@
         <div class="card shadow-sm mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h4 class="my-0">{{ ticket.title }}</h4>
-                <!-- دکمه ویرایش فعلا غیرفعال است چون ساختار آن تغییر کرده -->
+                {% if current_user.id == ticket.creator_id or current_user.role == 'admin' %}
+                <!-- لینک ویرایش فعلا کامنت شده تا در مرحله بعد اصلاح شود -->
                 <!-- <a href="{{ url_for('edit_ticket', ticket_id=ticket.id) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil-square"></i> ویرایش</a> -->
+                {% endif %}
             </div>
             <div class="card-body">
                 <p class="card-text text-muted">ایجاد شده در: {{ ticket.created_at | shamsi }} توسط {{ ticket.creator.first_name }} {{ ticket.creator.last_name }}</p>
@@ -22,6 +23,17 @@
                 <h5>شرح کامل مشکل:</h5>
                 <p style="white-space: pre-wrap;">{{ ticket.description }}</p>
             </div>
+        </div>
+        <div class="card shadow-sm">
+            <div class="card-header"><h5 class="my-0">گفتگو و یادداشت‌های داخلی</h5></div>
+            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                {% for comment in ticket.comments|sort(attribute='created_at') %}<div class="d-flex flex-row justify-content-start mb-3"><div><p class="small p-2 ms-3 mb-1 rounded-3" style="background-color: #f5f6f7;">{{ comment.content }}</p><p class="small ms-3 mb-3 rounded-3 text-muted">{{ comment.author.first_name }} - {{ comment.created_at | shamsi }}</p></div></div>{% else %}<p class="text-center text-muted">هنوز یادداشتی ثبت نشده است.</p>{% endfor %}
+            </div>
+            {% if current_user.role == 'admin' or (current_user.role == 'operator' and current_user.department_id == ticket.department_id) %}
+            <div class="card-footer">
+                <form action="{{ url_for('add_comment', ticket_id=ticket.id) }}" method="POST"><div class="input-group"><input type="text" name="content" class="form-control" placeholder="یادداشت خود را بنویسید..." required><button class="btn btn-primary" type="submit">ارسال</button></div></form>
+            </div>
+            {% endif %}
         </div>
     </div>
     <div class="col-md-4">
@@ -38,11 +50,22 @@
         <div class="card shadow-sm mb-4">
             <div class="card-header"><h5 class="my-0">جزئیات تیکت</h5></div>
             <ul class="list-group list-group-flush">
-                <li class="list-group-item"><strong>شناسه:</strong> {{ ticket.id }}</li>
-                <li class="list-group-item"><strong>بخش:</strong> {{ ticket.department.name }}</li>
-                <li class="list-group-item"><strong>وضعیت:</strong> {% set status_text, status_color = get_status_display(ticket.status) %}<span class="badge bg-{{ status_color }}">{{ status_text }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><strong>شناسه:</strong> <span>{{ ticket.id }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><strong>بخش:</strong> <span>{{ ticket.department.name }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><strong>وضعیت:</strong> {% set status_text, status_color = get_status_display(ticket.status) %}<span class="badge bg-{{ status_color }}">{{ status_text }}</span></li>
             </ul>
         </div>
+        {% if current_user.role == 'admin' or (current_user.role == 'operator' and current_user.department_id == ticket.department_id) %}
+        <div class="card shadow-sm">
+            <div class="card-header"><h5 class="my-0">عملیات</h5></div>
+            <div class="card-body">
+                <form action="{{ url_for('update_status', ticket_id=ticket.id) }}" method="POST">
+                    <label class="form-label">تغییر وضعیت</label>
+                    <div class="input-group"><select name="status" class="form-select"><option value="New">جدید</option><option value="In Progress">در حال بررسی</option><option value="Closed">بسته شده</option></select><button type="submit" class="btn btn-secondary">ثبت</button></div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
