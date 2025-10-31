@@ -10,7 +10,7 @@ import pytz
 import pandas as pd
 from io import BytesIO, StringIO
 from sqlalchemy import func, case, or_
-from google import generativeai as genai
+import google.generativeai as genai
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a-very-secret-key-that-should-be-changed')
@@ -21,17 +21,17 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
+# --- اصلاح نهایی و صحیح برای راه‌اندازی API ---
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-# --- تغییر در روش راه‌اندازی ---
 if GEMINI_API_KEY:
     try:
-        genai_client = genai.GenerativeModel(model_name="gemini-2.5-flash", api_key=GEMINI_API_KEY)
+        genai.configure(api_key=GEMINI_API_KEY)
+        genai_model = genai.GenerativeModel('gemini-2.5-flash')
     except Exception as e:
         print(f"Could not configure Gemini client: {e}")
-        genai_client = None
+        genai_model = None
 else:
-    genai_client = None
-
+    genai_model = None
 
 def to_shamsi(gregorian_dt):
     if gregorian_dt is None: return ""
@@ -108,11 +108,11 @@ class Comment(db.Model):
     ticket_id = db.Column(db.Integer, db.ForeignKey('ticket.id'), nullable=False)
 
 def generate_ai_summary(ticket_descriptions, department_name):
-    if not genai_client or not ticket_descriptions:
+    if not genai_model or not ticket_descriptions:
         return "خلاصه در دسترس نیست."
     try:
         prompt = f"""شما یک تحلیلگر متخصص CRM هستید. وظیفه شما تحلیل لیستی از توضیحات تیکت‌های اخیر برای بخش '{department_name}' و ارائه خلاصه‌ای کوتاه و کاربردی برای یک مدیر است. بر روی شناسایی موضوعات تکراری، مشکلات رایج و علل ریشه‌ای تمرکز کنید. تیکت‌ها را لیست نکنید. اطلاعات را در یک پاراگراف منسجم ترکیب کنید. خلاصه باید به زبان فارسی باشد. توضیحات تیکت‌ها: {' - '.join(ticket_descriptions)}"""
-        response = genai_client.generate_content(prompt)
+        response = genai_model.generate_content(prompt)
         return response.text
     except Exception as e:
         print(f"Error calling Gemini API: {e}")
@@ -122,6 +122,7 @@ def generate_ai_summary(ticket_descriptions, department_name):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+# ... (تمام مسیرهای دیگر بدون هیچ تغییری باقی می‌مانند)
 @app.route('/')
 @login_required
 def index():
@@ -134,7 +135,6 @@ def index():
     else:
         tickets = query.filter_by(creator_id=current_user.id).order_by(Ticket.created_at.desc()).limit(10).all()
     return render_template('index.html', tickets=tickets, departments=departments)
-
 @app.route('/tickets')
 @login_required
 def tickets_list():
@@ -156,7 +156,6 @@ def tickets_list():
         tickets = query.filter_by(creator_id=current_user.id).order_by(Ticket.created_at.desc()).all()
     departments = Department.query.all()
     return render_template('tickets_list.html', tickets=tickets, departments=departments, creators=creators)
-
 @app.route('/find_student')
 @login_required
 def find_student():
@@ -166,7 +165,6 @@ def find_student():
     if student:
         return jsonify({'id': student.id, 'first_name': student.first_name, 'last_name': student.last_name, 'helli_code': student.helli_code, 'grade': student.grade, 'student_mobile': student.student_mobile, 'parent_mobile': student.parent_mobile, 'national_id': student.national_id})
     return jsonify(None)
-
 @app.route('/create', methods=['POST'])
 @login_required
 def create():
@@ -174,8 +172,7 @@ def create():
     student = None
     if student_id: student = Student.query.get(student_id)
     if not student:
-        national_id = request.form.get('national_id')
-        student_mobile = request.form.get('student_mobile')
+        national_id, student_mobile = request.form.get('national_id'), request.form.get('student_mobile')
         if national_id: student = Student.query.filter_by(national_id=national_id).first()
         if not student and student_mobile: student = Student.query.filter_by(student_mobile=student_mobile).first()
     if student:
@@ -188,7 +185,6 @@ def create():
     db.session.add(new_ticket)
     db.session.commit()
     return redirect(url_for('index'))
-    
 @app.route('/reports')
 @login_required
 @admin_required
@@ -206,22 +202,18 @@ def reports():
     avg_resolution_days = round(avg_resolution_seconds / (24 * 3600), 1)
     oldest_open_ticket = Ticket.query.filter(Ticket.status != 'Closed').order_by(Ticket.created_at.asc()).first()
     oldest_open_ticket_age = (datetime.now(pytz.utc) - oldest_open_ticket.created_at).days if oldest_open_ticket else 0
+    test_summary = generate_ai_summary(["تیکت تست ۱", "تیکت تست ۲"], "بخش آزمایشی")
+    print("AI Summary:", test_summary)
     tickets_by_dept = db.session.query(Department.name, func.count(Ticket.id)).join(Ticket).filter(Ticket.created_at.between(start_date, end_date)).group_by(Department.name).all()
     dept_chart_labels, dept_chart_data = [d[0] for d in tickets_by_dept], [d[1] for d in tickets_by_dept]
     tickets_by_status = db.session.query(Ticket.status, func.count(Ticket.id)).filter(Ticket.created_at.between(start_date, end_date)).group_by(Ticket.status).all()
     status_chart_labels, status_chart_data = [get_status_display(s[0])[0] for s in tickets_by_status], [s[1] for s in tickets_by_status]
     daily_trend_query = db.session.query(func.date(Ticket.created_at), func.count(Ticket.id)).filter(Ticket.created_at.between(start_date, end_date)).group_by(func.date(Ticket.created_at)).order_by(func.date(Ticket.created_at)).all()
-    trend_labels = [to_shamsi(d[0]) for d in daily_trend_query]
-    trend_data = [d[1] for d in daily_trend_query]
+    trend_labels, trend_data = [to_shamsi(d[0]) for d in daily_trend_query], [d[1] for d in daily_trend_query]
     operator_performance = db.session.query(User.first_name, User.last_name, Department.name, func.count(Ticket.id).label('total'), func.sum(case((Ticket.status == 'Closed', 1), else_=0)).label('closed')).join(Ticket, Department.id == Ticket.department_id).join(User, User.department_id == Department.id).filter(User.role == 'operator', Ticket.created_at.between(start_date, end_date)).group_by(User.id, Department.name).all()
     counselor_performance = db.session.query(User.first_name, User.last_name, func.count(Ticket.id)).join(Ticket, User.id == Ticket.creator_id).filter(User.role == 'counselor', Ticket.created_at.between(start_date, end_date)).group_by(User.id).all()
     department_performance = db.session.query(Department.name, func.count(Ticket.id).label('total'), func.sum(case((Ticket.status == 'Closed', 1), else_=0)).label('closed')).join(Ticket).filter(Ticket.created_at.between(start_date, end_date)).group_by(Department.name).all()
-    
-    test_summary = generate_ai_summary(["تیکت تست ۱", "تیکت تست ۲"], "بخش آزمایشی")
-    print("AI Summary:", test_summary)
-
     return render_template('reports.html', start_date=start_date_str, end_date=end_date_str, total_tickets=total_tickets, closed_tickets=closed_tickets, open_tickets=open_tickets, avg_resolution_days=avg_resolution_days, oldest_open_ticket_age=oldest_open_ticket_age, dept_chart_labels=dept_chart_labels, dept_chart_data=dept_chart_data, status_chart_labels=status_chart_labels, status_chart_data=status_chart_data, trend_labels=trend_labels, trend_data=trend_data, counselor_performance=counselor_performance, operator_performance=operator_performance, department_performance=department_performance)
-
 @app.route('/export')
 @login_required
 @admin_required
@@ -241,7 +233,6 @@ def export_excel():
     df.to_excel(output, index=False, sheet_name='گزارش تیکت‌ها', engine='openpyxl')
     output.seek(0)
     return send_file(output, download_name='report.xlsx', as_attachment=True)
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if User.query.first() is None: return redirect(url_for('register_first_admin'))
@@ -252,7 +243,6 @@ def login():
             login_user(user); return redirect(url_for('index'))
         flash('نام کاربری یا رمز عبور اشتباه است.', 'danger')
     return render_template('login.html')
-
 @app.route('/register_first_admin', methods=['GET', 'POST'])
 def register_first_admin():
     if User.query.first() is not None: return redirect(url_for('login'))
@@ -263,13 +253,11 @@ def register_first_admin():
         flash('کاربر ادمین با موفقیت ایجاد شد. لطفاً وارد شوید.', 'success')
         return redirect(url_for('login'))
     return render_template('register.html')
-
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
     return redirect(url_for('login'))
-
 @app.route('/ticket/<int:ticket_id>')
 @login_required
 def ticket_detail(ticket_id):
@@ -278,7 +266,6 @@ def ticket_detail(ticket_id):
     if not (is_admin or is_creator or is_operator): abort(403)
     departments = Department.query.all()
     return render_template('ticket_detail.html', ticket=ticket, departments=departments)
-
 @app.route('/ticket/<int:ticket_id>/comment', methods=['POST'])
 @login_required
 def add_comment(ticket_id):
@@ -291,7 +278,6 @@ def add_comment(ticket_id):
         new_comment = Comment(content=content, user_id=current_user.id, ticket_id=ticket.id)
         db.session.add(new_comment); db.session.commit()
     return redirect(url_for('ticket_detail', ticket_id=ticket_id))
-
 @app.route('/ticket/<int:ticket_id>/reassign', methods=['POST'])
 @login_required
 @admin_required
@@ -303,7 +289,6 @@ def reassign_ticket(ticket_id):
         db.session.commit()
         flash(f'تیکت به بخش جدید ارجاع داده شد.', 'success')
     return redirect(url_for('ticket_detail', ticket_id=ticket_id))
-
 @app.route('/ticket/<int:ticket_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_ticket(ticket_id):
@@ -315,7 +300,6 @@ def edit_ticket(ticket_id):
         return redirect(url_for('ticket_detail', ticket_id=ticket.id))
     departments = Department.query.all()
     return render_template('edit_ticket.html', ticket=ticket, departments=departments)
-
 @app.route('/ticket/<int:ticket_id>/update', methods=['POST'])
 @login_required
 def update_status(ticket_id):
@@ -325,7 +309,6 @@ def update_status(ticket_id):
     ticket.status = request.form['status']
     db.session.commit()
     return redirect(url_for('ticket_detail', ticket_id=ticket_id))
-
 @app.route('/ticket/<int:ticket_id>/delete', methods=['POST'])
 @login_required
 @admin_required
@@ -333,14 +316,12 @@ def delete_ticket(ticket_id):
     ticket = Ticket.query.get_or_404(ticket_id)
     db.session.delete(ticket); db.session.commit()
     return redirect(url_for('index'))
-
 @app.route('/manage_users')
 @login_required
 @admin_required
 def manage_users():
     users, departments = User.query.order_by(User.id).all(), Department.query.all()
     return render_template('manage_users.html', users=users, departments=departments)
-
 @app.route('/add_user', methods=['POST'])
 @login_required
 @admin_required
@@ -355,7 +336,6 @@ def add_user():
         db.session.add(new_user); db.session.commit()
         flash(f'کاربر "{username}" با موفقیت ایجاد شد.', 'success')
     return redirect(url_for('manage_users'))
-
 @app.route('/edit_user/<int:user_id>', methods=['GET', 'POST'])
 @login_required
 @admin_required
@@ -370,7 +350,6 @@ def edit_user(user_id):
         return redirect(url_for('manage_users'))
     departments = Department.query.all()
     return render_template('edit_user.html', user=user_to_edit, departments=departments)
-
 @app.route('/delete_user/<int:user_id>', methods=['POST'])
 @login_required
 @admin_required
@@ -381,7 +360,6 @@ def delete_user(user_id):
         db.session.delete(user); db.session.commit()
         flash(f'کاربر "{user.username}" حذف شد.', 'success')
     return redirect(url_for('manage_users'))
-
 @app.route('/manage_students')
 @login_required
 @admin_required
@@ -394,7 +372,6 @@ def manage_students():
         query = query.filter(or_(Student.helli_code.ilike(search_term), Student.national_id.ilike(search_term), Student.student_mobile.ilike(search_term), func.concat(Student.first_name, ' ', Student.last_name).ilike(search_term)))
     students = query.paginate(page=page, per_page=15)
     return render_template('manage_students.html', students=students, search=search)
-
 @app.route('/upload_students', methods=['POST'])
 @login_required
 @admin_required
