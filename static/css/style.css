@@ -9,18 +9,7 @@ body {
     border: 1px solid #dee2e6;
 }
 
-.input-group > :not(:last-child) {
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
-}
-
-.input-group > :not(:first-child) {
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-}
-
-/* --- استایل‌های جدید برای بخش گفتگو --- */
-
+/* استایل‌های بخش گفتگو (بدون تغییر) */
 .chat-wrapper {
     max-height: 450px;
     overflow-y: auto;
@@ -57,7 +46,6 @@ body {
     margin-top: 0.25rem;
 }
 
-/* پیام‌های ورودی (از طرف دیگران) */
 .message-in {
     justify-content: flex-start;
 }
@@ -71,7 +59,6 @@ body {
     border-top-right-radius: 0.25rem;
 }
 
-/* پیام‌های خروجی (از طرف کاربر فعلی) */
 .message-out {
     justify-content: flex-end;
 }
@@ -84,5 +71,5 @@ body {
 .message-out .chat-bubble {
     background-color: #cce5ff;
     border-top-left-radius: 0.25rem;
-    text-align: right; /* متن پیام‌های خودمان را هم راست‌چین می‌کنیم */
+    text-align: right;
 }
