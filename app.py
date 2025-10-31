@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import jdatetime
 import pytz
 import pandas as pd
-from io import BytesIO, StringIO
+from io import BytesIO
 from sqlalchemy import func, case, or_
 
 app = Flask(__name__)
@@ -65,12 +65,9 @@ class Student(db.Model):
     national_id = db.Column(db.String(20), unique=True, nullable=True)
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
-    gender = db.Column(db.String(10))
     grade = db.Column(db.String(20))
-    province = db.Column(db.String(50))
     student_mobile = db.Column(db.String(20), unique=True, nullable=True)
     parent_mobile = db.Column(db.String(20))
-    emergency_mobile = db.Column(db.String(20))
     tickets = db.relationship('Ticket', backref='student', lazy=True)
 
 class Ticket(db.Model):
@@ -99,23 +96,40 @@ def load_user(user_id):
 @app.route('/')
 @login_required
 def index():
+    departments = Department.query.all()
+    # نمایش ۱۰ تیکت آخر برای همه
+    tickets = Ticket.query.order_by(Ticket.created_at.desc()).limit(10).all()
+    return render_template('index.html', tickets=tickets, departments=departments)
+
+@app.route('/tickets')
+@login_required
+def tickets_list():
     query = Ticket.query
     creators = []
     if current_user.role == 'admin':
         creators = User.query.order_by(User.first_name).all()
-        f_department, f_creator, f_status, f_start_date, f_end_date = request.args.get('department'), request.args.get('creator'), request.args.get('status'), request.args.get('start_date'), request.args.get('end_date')
+        f_department = request.args.get('department')
+        f_creator = request.args.get('creator')
+        f_status = request.args.get('status')
+        f_start_date = request.args.get('start_date')
+        f_end_date = request.args.get('end_date')
+        f_helli_code = request.args.get('helli_code')
+
         if f_department: query = query.filter(Ticket.department_id == f_department)
         if f_creator: query = query.filter(Ticket.creator_id == f_creator)
         if f_status: query = query.filter(Ticket.status == f_status)
         if f_start_date: query = query.filter(Ticket.created_at >= jdatetime.datetime.strptime(f_start_date, '%Y/%m/%d').togregorian())
         if f_end_date: query = query.filter(Ticket.created_at <= jdatetime.datetime.strptime(f_end_date, '%Y/%m/%d').togregorian().replace(hour=23, minute=59, second=59))
+        if f_helli_code: query = query.join(Student).filter(Student.helli_code == f_helli_code)
+        
         tickets = query.order_by(Ticket.created_at.desc()).all()
     elif current_user.role == 'operator':
         tickets = query.filter_by(department_id=current_user.department_id).order_by(Ticket.created_at.desc()).all()
-    else:
+    else: # counselor
         tickets = query.filter_by(creator_id=current_user.id).order_by(Ticket.created_at.desc()).all()
+    
     departments = Department.query.all()
-    return render_template('index.html', tickets=tickets, departments=departments, creators=creators)
+    return render_template('tickets_list.html', tickets=tickets, departments=departments, creators=creators)
 
 @app.route('/find_student')
 @login_required
@@ -148,7 +162,7 @@ def create():
     db.session.add(new_ticket)
     db.session.commit()
     return redirect(url_for('index'))
-
+    
 @app.route('/reports')
 @login_required
 @admin_required
@@ -177,12 +191,13 @@ def reports():
 @admin_required
 def export_excel():
     query = Ticket.query
-    f_department, f_creator, f_status, f_start_date, f_end_date = request.args.get('department'), request.args.get('creator'), request.args.get('status'), request.args.get('start_date'), request.args.get('end_date')
+    f_department, f_creator, f_status, f_start_date, f_end_date, f_helli_code = request.args.get('department'), request.args.get('creator'), request.args.get('status'), request.args.get('start_date'), request.args.get('end_date'), request.args.get('helli_code')
     if f_department: query = query.filter(Ticket.department_id == f_department)
     if f_creator: query = query.filter(Ticket.creator_id == f_creator)
     if f_status: query = query.filter(Ticket.status == f_status)
     if f_start_date: query = query.filter(Ticket.created_at >= jdatetime.datetime.strptime(f_start_date, '%Y/%m/%d').togregorian())
     if f_end_date: query = query.filter(Ticket.created_at <= jdatetime.datetime.strptime(f_end_date, '%Y/%m/%d').togregorian().replace(hour=23, minute=59, second=59))
+    if f_helli_code: query = query.join(Student).filter(Student.helli_code == f_helli_code)
     tickets_to_export = query.order_by(Ticket.created_at.desc()).all()
     data = [{'شناسه': t.id, 'عنوان': t.title, 'حلی کد': t.student.helli_code, 'شرح مشکل': t.description, 'وضعیت': get_status_display(t.status)[0], 'بخش': t.department.name, 'ایجاد کننده': f"{t.creator.first_name} {t.creator.last_name}", 'تاریخ ایجاد (شمسی)': to_shamsi(t.created_at)} for t in tickets_to_export]
     df = pd.DataFrame(data)
@@ -327,12 +342,7 @@ def manage_students():
     query = Student.query.order_by(Student.last_name)
     if search:
         search_term = f"%{search}%"
-        query = query.filter(or_(
-            Student.helli_code.ilike(search_term),
-            Student.national_id.ilike(search_term),
-            Student.student_mobile.ilike(search_term),
-            func.concat(Student.first_name, ' ', Student.last_name).ilike(search_term)
-        ))
+        query = query.filter(or_(Student.helli_code.ilike(search_term), Student.national_id.ilike(search_term), Student.student_mobile.ilike(search_term), func.concat(Student.first_name, ' ', Student.last_name).ilike(search_term)))
     students = query.paginate(page=page, per_page=15)
     return render_template('manage_students.html', students=students, search=search)
 
@@ -340,60 +350,30 @@ def manage_students():
 @login_required
 @admin_required
 def upload_students():
-    if 'file' not in request.files:
+    if 'file' not in request.files or request.files['file'].filename == '':
         flash('هیچ فایلی انتخاب نشده است.', 'danger')
         return redirect(url_for('manage_students'))
     file = request.files['file']
-    if file.filename == '':
-        flash('هیچ فایلی انتخاب نشده است.', 'danger')
-        return redirect(url_for('manage_students'))
     if file and file.filename.endswith('.csv'):
         try:
             stream = StringIO(file.stream.read().decode("UTF8"), newline=None)
             df = pd.read_csv(stream)
-            
-            updated_count = 0
-            added_count = 0
-            
+            updated_count, added_count = 0, 0
             for index, row in df.iterrows():
                 student = Student.query.filter_by(helli_code=str(row['helli_code'])).first()
                 if student:
-                    # Update existing student
-                    student.national_id = str(row.get('national_id', student.national_id))
-                    student.first_name = row.get('first_name', student.first_name)
-                    student.last_name = row.get('last_name', student.last_name)
-                    student.gender = row.get('gender', student.gender)
-                    student.grade = row.get('grade', student.grade)
-                    student.province = row.get('province', student.province)
-                    student.student_mobile = str(row.get('student_mobile', student.student_mobile))
-                    student.parent_mobile = str(row.get('parent_mobile', student.parent_mobile))
-                    student.emergency_mobile = str(row.get('emergency_mobile', student.emergency_mobile))
+                    student.national_id, student.first_name, student.last_name, student.gender, student.grade, student.province, student.student_mobile, student.parent_mobile, student.emergency_mobile = str(row.get('national_id')), row.get('first_name'), row.get('last_name'), row.get('gender'), row.get('grade'), row.get('province'), str(row.get('student_mobile')), str(row.get('parent_mobile')), str(row.get('emergency_mobile'))
                     updated_count += 1
                 else:
-                    # Add new student
-                    new_student = Student(
-                        helli_code=str(row.get('helli_code')),
-                        national_id=str(row.get('national_id')),
-                        first_name=row.get('first_name'),
-                        last_name=row.get('last_name'),
-                        gender=row.get('gender'),
-                        grade=row.get('grade'),
-                        province=row.get('province'),
-                        student_mobile=str(row.get('student_mobile')),
-                        parent_mobile=str(row.get('parent_mobile')),
-                        emergency_mobile=str(row.get('emergency_mobile'))
-                    )
+                    new_student = Student(helli_code=str(row.get('helli_code')), national_id=str(row.get('national_id')), first_name=row.get('first_name'), last_name=row.get('last_name'), gender=row.get('gender'), grade=row.get('grade'), province=row.get('province'), student_mobile=str(row.get('student_mobile')), parent_mobile=str(row.get('parent_mobile')), emergency_mobile=str(row.get('emergency_mobile')))
                     db.session.add(new_student)
                     added_count += 1
-            
             db.session.commit()
-            flash(f'فایل با موفقیت پردازش شد. {added_count} دانش‌آموز جدید اضافه و {updated_count} دانش‌آموز به‌روزرسانی شدند.', 'success')
+            flash(f'فایل با موفقیت پردازش شد. {added_count} دانش‌آموز جدید و {updated_count} دانش‌آموز به‌روزرسانی شدند.', 'success')
         except Exception as e:
             db.session.rollback()
             flash(f'خطا در پردازش فایل: {e}', 'danger')
-        
         return redirect(url_for('manage_students'))
-        
     flash('فرمت فایل باید CSV باشد.', 'warning')
     return redirect(url_for('manage_students'))
 
