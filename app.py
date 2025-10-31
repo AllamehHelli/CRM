@@ -102,15 +102,11 @@ def index():
     departments = Department.query.all()
     query = Ticket.query
     if current_user.role == 'admin':
-        # ادمین همه تیکت‌ها را می‌بیند
         tickets = query.order_by(Ticket.created_at.desc()).limit(10).all()
     elif current_user.role == 'operator':
-        # اپراتور فقط تیکت‌های بخش خودش را می‌بیند
         tickets = query.filter_by(department_id=current_user.department_id).order_by(Ticket.created_at.desc()).limit(10).all()
-    else: # counselor
-        # مشاور فقط تیکت‌هایی که خودش ساخته را می‌بیند
+    else:
         tickets = query.filter_by(creator_id=current_user.id).order_by(Ticket.created_at.desc()).limit(10).all()
-    
     return render_template('index.html', tickets=tickets, departments=departments)
 
 @app.route('/tickets')
@@ -130,7 +126,7 @@ def tickets_list():
         tickets = query.order_by(Ticket.created_at.desc()).all()
     elif current_user.role == 'operator':
         tickets = query.filter_by(department_id=current_user.department_id).order_by(Ticket.created_at.desc()).all()
-    else: # counselor
+    else:
         tickets = query.filter_by(creator_id=current_user.id).order_by(Ticket.created_at.desc()).all()
     departments = Department.query.all()
     return render_template('tickets_list.html', tickets=tickets, departments=departments, creators=creators)
@@ -152,8 +148,7 @@ def create():
     student = None
     if student_id: student = Student.query.get(student_id)
     if not student:
-        national_id = request.form.get('national_id')
-        student_mobile = request.form.get('student_mobile')
+        national_id, student_mobile = request.form.get('national_id'), request.form.get('student_mobile')
         if national_id: student = Student.query.filter_by(national_id=national_id).first()
         if not student and student_mobile: student = Student.query.filter_by(student_mobile=student_mobile).first()
     if student:
@@ -244,7 +239,8 @@ def ticket_detail(ticket_id):
     ticket = Ticket.query.get_or_404(ticket_id)
     is_admin, is_creator, is_operator = current_user.role == 'admin', ticket.creator_id == current_user.id, (current_user.role == 'operator' and ticket.department_id == current_user.department_id)
     if not (is_admin or is_creator or is_operator): abort(403)
-    return render_template('ticket_detail.html', ticket=ticket)
+    departments = Department.query.all()
+    return render_template('ticket_detail.html', ticket=ticket, departments=departments)
 
 @app.route('/ticket/<int:ticket_id>/comment', methods=['POST'])
 @login_required
@@ -257,6 +253,18 @@ def add_comment(ticket_id):
     if content:
         new_comment = Comment(content=content, user_id=current_user.id, ticket_id=ticket.id)
         db.session.add(new_comment); db.session.commit()
+    return redirect(url_for('ticket_detail', ticket_id=ticket_id))
+
+@app.route('/ticket/<int:ticket_id>/reassign', methods=['POST'])
+@login_required
+@admin_required
+def reassign_ticket(ticket_id):
+    ticket = Ticket.query.get_or_404(ticket_id)
+    new_department_id = request.form.get('department_id')
+    if new_department_id:
+        ticket.department_id = new_department_id
+        db.session.commit()
+        flash(f'تیکت به بخش جدید ارجاع داده شد.', 'success')
     return redirect(url_for('ticket_detail', ticket_id=ticket_id))
 
 @app.route('/ticket/<int:ticket_id>/edit', methods=['GET', 'POST'])
@@ -279,7 +287,7 @@ def update_status(ticket_id):
     if not (is_admin or is_operator): abort(403)
     ticket.status = request.form['status']
     db.session.commit()
-    return redirect(url_for('ticket_detail', ticket_id=ticket.id))
+    return redirect(url_for('ticket_detail', ticket_id=ticket_id))
 
 @app.route('/ticket/<int:ticket_id>/delete', methods=['POST'])
 @login_required
@@ -382,12 +390,14 @@ def upload_students():
         return redirect(url_for('manage_students'))
     flash('فرمت فایل باید CSV باشد.', 'warning')
     return redirect(url_for('manage_students'))
+
 def create_default_departments():
     default_deps = ['کتابخوان', 'بازارهوشمند', 'آموزش', 'آزمون‌ها', 'عمومی']
     for dep_name in default_deps:
         if not Department.query.filter_by(name=dep_name).first():
             db.session.add(Department(name=dep_name))
     db.session.commit()
+
 with app.app_context():
     db.create_all()
     create_default_departments()
