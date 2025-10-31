@@ -14,9 +14,10 @@
 <body>
     <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top shadow-sm">
         <div class="container">
-            <a class="navbar-brand" href="{{ url_for('index') }}"><strong>CRM علامه حلی</strong></a>
+            <a class="navbar-brand" href="{{ url_for('index') }}"><strong>داشبورد</strong></a>
             <div class="collapse navbar-collapse">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('tickets_list') }}">همه تیکت‌ها</a></li>
                     {% if current_user.is_authenticated and current_user.role == 'admin' %}
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('manage_users') }}">مدیریت کاربران</a></li>
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('manage_students') }}">مدیریت دانش‌آموزان</a></li>
