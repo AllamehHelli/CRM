@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import jdatetime
 import pytz
 import pandas as pd
-from io import BytesIO
+from io import BytesIO, StringIO # <--- خط گمشده اینجا اضافه شده است
 from sqlalchemy import func, case, or_
 
 app = Flask(__name__)
@@ -65,9 +65,12 @@ class Student(db.Model):
     national_id = db.Column(db.String(20), unique=True, nullable=True)
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
+    gender = db.Column(db.String(10))
     grade = db.Column(db.String(20))
+    province = db.Column(db.String(50))
     student_mobile = db.Column(db.String(20), unique=True, nullable=True)
     parent_mobile = db.Column(db.String(20))
+    emergency_mobile = db.Column(db.String(20))
     tickets = db.relationship('Ticket', backref='student', lazy=True)
 
 class Ticket(db.Model):
@@ -97,7 +100,6 @@ def load_user(user_id):
 @login_required
 def index():
     departments = Department.query.all()
-    # نمایش ۱۰ تیکت آخر برای همه
     tickets = Ticket.query.order_by(Ticket.created_at.desc()).limit(10).all()
     return render_template('index.html', tickets=tickets, departments=departments)
 
@@ -108,26 +110,18 @@ def tickets_list():
     creators = []
     if current_user.role == 'admin':
         creators = User.query.order_by(User.first_name).all()
-        f_department = request.args.get('department')
-        f_creator = request.args.get('creator')
-        f_status = request.args.get('status')
-        f_start_date = request.args.get('start_date')
-        f_end_date = request.args.get('end_date')
-        f_helli_code = request.args.get('helli_code')
-
+        f_department, f_creator, f_status, f_start_date, f_end_date, f_helli_code = request.args.get('department'), request.args.get('creator'), request.args.get('status'), request.args.get('start_date'), request.args.get('end_date'), request.args.get('helli_code')
         if f_department: query = query.filter(Ticket.department_id == f_department)
         if f_creator: query = query.filter(Ticket.creator_id == f_creator)
         if f_status: query = query.filter(Ticket.status == f_status)
         if f_start_date: query = query.filter(Ticket.created_at >= jdatetime.datetime.strptime(f_start_date, '%Y/%m/%d').togregorian())
         if f_end_date: query = query.filter(Ticket.created_at <= jdatetime.datetime.strptime(f_end_date, '%Y/%m/%d').togregorian().replace(hour=23, minute=59, second=59))
         if f_helli_code: query = query.join(Student).filter(Student.helli_code == f_helli_code)
-        
         tickets = query.order_by(Ticket.created_at.desc()).all()
     elif current_user.role == 'operator':
         tickets = query.filter_by(department_id=current_user.department_id).order_by(Ticket.created_at.desc()).all()
     else: # counselor
         tickets = query.filter_by(creator_id=current_user.id).order_by(Ticket.created_at.desc()).all()
-    
     departments = Department.query.all()
     return render_template('tickets_list.html', tickets=tickets, departments=departments, creators=creators)
 
@@ -357,23 +351,57 @@ def upload_students():
     if file and file.filename.endswith('.csv'):
         try:
             stream = StringIO(file.stream.read().decode("UTF8"), newline=None)
-            df = pd.read_csv(stream)
+            df = pd.read_csv(stream, dtype=str) # خواندن همه ستون‌ها به صورت رشته
+            
             updated_count, added_count = 0, 0
+            
             for index, row in df.iterrows():
-                student = Student.query.filter_by(helli_code=str(row['helli_code'])).first()
+                # اولویت با حلی کد، سپس کد ملی، سپس موبایل
+                student = None
+                if 'helli_code' in row and pd.notna(row['helli_code']):
+                    student = Student.query.filter_by(helli_code=str(row['helli_code'])).first()
+                if not student and 'national_id' in row and pd.notna(row['national_id']):
+                    student = Student.query.filter_by(national_id=str(row['national_id'])).first()
+                if not student and 'student_mobile' in row and pd.notna(row['student_mobile']):
+                    student = Student.query.filter_by(student_mobile=str(row['student_mobile'])).first()
+                
                 if student:
-                    student.national_id, student.first_name, student.last_name, student.gender, student.grade, student.province, student.student_mobile, student.parent_mobile, student.emergency_mobile = str(row.get('national_id')), row.get('first_name'), row.get('last_name'), row.get('gender'), row.get('grade'), row.get('province'), str(row.get('student_mobile')), str(row.get('parent_mobile')), str(row.get('emergency_mobile'))
+                    # Update existing student
+                    student.national_id = str(row.get('national_id', student.national_id)) if pd.notna(row.get('national_id')) else student.national_id
+                    student.first_name = row.get('first_name', student.first_name)
+                    student.last_name = row.get('last_name', student.last_name)
+                    student.gender = row.get('gender', student.gender)
+                    student.grade = row.get('grade', student.grade)
+                    student.province = row.get('province', student.province)
+                    student.student_mobile = str(row.get('student_mobile', student.student_mobile)) if pd.notna(row.get('student_mobile')) else student.student_mobile
+                    student.parent_mobile = str(row.get('parent_mobile', student.parent_mobile)) if pd.notna(row.get('parent_mobile')) else student.parent_mobile
+                    student.emergency_mobile = str(row.get('emergency_mobile', student.emergency_mobile)) if pd.notna(row.get('emergency_mobile')) else student.emergency_mobile
                     updated_count += 1
                 else:
-                    new_student = Student(helli_code=str(row.get('helli_code')), national_id=str(row.get('national_id')), first_name=row.get('first_name'), last_name=row.get('last_name'), gender=row.get('gender'), grade=row.get('grade'), province=row.get('province'), student_mobile=str(row.get('student_mobile')), parent_mobile=str(row.get('parent_mobile')), emergency_mobile=str(row.get('emergency_mobile')))
+                    # Add new student
+                    new_student = Student(
+                        helli_code=str(row.get('helli_code')) if pd.notna(row.get('helli_code')) else None,
+                        national_id=str(row.get('national_id')) if pd.notna(row.get('national_id')) else None,
+                        first_name=row.get('first_name'),
+                        last_name=row.get('last_name'),
+                        gender=row.get('gender'),
+                        grade=row.get('grade'),
+                        province=row.get('province'),
+                        student_mobile=str(row.get('student_mobile')) if pd.notna(row.get('student_mobile')) else None,
+                        parent_mobile=str(row.get('parent_mobile')) if pd.notna(row.get('parent_mobile')) else None,
+                        emergency_mobile=str(row.get('emergency_mobile')) if pd.notna(row.get('emergency_mobile')) else None
+                    )
                     db.session.add(new_student)
                     added_count += 1
+            
             db.session.commit()
-            flash(f'فایل با موفقیت پردازش شد. {added_count} دانش‌آموز جدید و {updated_count} دانش‌آموز به‌روزرسانی شدند.', 'success')
+            flash(f'فایل با موفقیت پردازش شد. {added_count} دانش‌آموز جدید اضافه و {updated_count} دانش‌آموز به‌روزرسانی شدند.', 'success')
         except Exception as e:
             db.session.rollback()
             flash(f'خطا در پردازش فایل: {e}', 'danger')
+        
         return redirect(url_for('manage_students'))
+        
     flash('فرمت فایل باید CSV باشد.', 'warning')
     return redirect(url_for('manage_students'))
 
