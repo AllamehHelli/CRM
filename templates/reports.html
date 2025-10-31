@@ -6,29 +6,18 @@
     <h1 class="h2">داشبورد گزارش‌گیری</h1>
 </div>
 
-<!-- بخش خلاصه هوشمند -->
+{% if ai_summary %}
 <div class="card shadow-sm mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="my-0"><i class="bi bi-robot"></i> خلاصه هوشمند تیکت‌ها</h5>
         <small class="text-muted">تولید شده با هوش مصنوعی</small>
     </div>
     <div class="card-body">
-        <nav>
-            <div class="nav nav-tabs" id="nav-tab" role="tablist">
-                {% for dept in all_departments %}
-                    <button class="nav-link {% if loop.first %}active{% endif %}" id="nav-{{ dept.id }}-tab" data-bs-toggle="tab" data-bs-target="#nav-{{ dept.id }}" type="button" role="tab">{{ dept.name }}</button>
-                {% endfor %}
-            </div>
-        </nav>
-        <div class="tab-content p-3 border border-top-0 rounded-bottom">
-            {% for dept in all_departments %}
-                <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="nav-{{ dept.id }}" role="tabpanel">
-                    <p style="white-space: pre-wrap;">{{ ai_summaries.get(dept.name, 'خلاصه‌ای برای این بخش یافت نشد.') }}</p>
-                </div>
-            {% endfor %}
-        </div>
+        <!-- ما از کتابخانه marked.js برای تبدیل متن Markdown به HTML استفاده می‌کنیم -->
+        <div id="ai-summary-content" style="white-space: pre-wrap;">{{ ai_summary | safe }}</div>
     </div>
 </div>
+{% endif %}
 
 
 <div class="card shadow-sm mb-4">
@@ -97,7 +86,7 @@
                 {% for row in department_performance %}<tr><td><strong>{{ row.name }}</strong></td><td>{{ row.total }}</td><td>{{ row.closed or 0 }}</td><td>{{ "%.1f"|format((row.closed or 0) * 100 / row.total) if row.total > 0 else 0.0 }}%</td></tr>{% endfor %}
                 </tbody></table>
                 <hr>
-                <table class="table table-sm table-borderless"><thead><tr><th>اپراتور</th><th>بخش</th><th>تیکت‌ها</th><th>تیکت‌های حل شده</th></tr></thead><tbody>
+                <table class="table table-sm table-borderless"><thead><tr><th>اپراتور</th><th>بخش</th><th>تیکت‌های رسیدگی شده</th><th>تیکت‌های حل شده</th></tr></thead><tbody>
                 {% for row in operator_performance %}<tr><td>{{ row.first_name }} {{ row.last_name }}</td><td><small>{{ row.name }}</small></td><td>{{ row.total }}</td><td>{{ row.closed or 0 }}</td></tr>{% endfor %}
                 </tbody></table>
             </div>
@@ -107,24 +96,29 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- اضافه کردن کتابخانه Marked.js برای رندر کردن Markdown -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
     $(document).ready(function() {
         $(".datepicker").persianDatepicker({ format: 'YYYY/MM/DD', autoClose: true, observer: true, initialValue: false });
 
+        // تبدیل متن Markdown خلاصه هوشمند به HTML
+        var markdownContent = $('#ai-summary-content').text();
+        $('#ai-summary-content').html(marked.parse(markdownContent));
+
+        // ... (بقیه کدهای جاوااسکریپت برای نمودارها بدون تغییر)
         const trendCtx = document.getElementById('trendChart').getContext('2d');
         new Chart(trendCtx, {
             type: 'line',
             data: { labels: {{ trend_labels|tojson }}, datasets: [{ label: 'تیکت‌های ایجاد شده', data: {{ trend_data|tojson }}, borderColor: '#0d6efd', tension: 0.1 }] },
             options: { responsive: true, maintainAspectRatio: false }
         });
-
         const deptCtx = document.getElementById('deptChart').getContext('2d');
         new Chart(deptCtx, {
             type: 'doughnut',
             data: { labels: {{ dept_chart_labels|tojson }}, datasets: [{ label: 'تعداد تیکت', data: {{ dept_chart_data|tojson }}, backgroundColor: ['#0d6efd', '#6f42c1', '#d63384', '#fd7e14', '#198754', '#dc3545', '#ffc107'] }] },
             options: { responsive: true, maintainAspectRatio: false }
         });
-
         const statusCtx = document.getElementById('statusChart').getContext('2d');
         new Chart(statusCtx, {
             type: 'pie',
