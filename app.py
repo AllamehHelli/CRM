@@ -111,7 +111,7 @@ def generate_ai_summary(ticket_descriptions, department_name):
         return "خلاصه در دسترس نیست."
     try:
         prompt = f"""شما یک تحلیلگر متخصص CRM هستید. وظیفه شما تحلیل لیستی از توضیحات تیکت‌های اخیر برای بخش '{department_name}' و ارائه خلاصه‌ای کوتاه و کاربردی برای یک مدیر است. بر روی شناسایی موضوعات تکراری، مشکلات رایج و علل ریشه‌ای تمرکز کنید. تیکت‌ها را لیست نکنید. اطلاعات را در یک پاراگراف منسجم ترکیب کنید. خلاصه باید به زبان فارسی باشد. توضیحات تیکت‌ها: {' - '.join(ticket_descriptions)}"""
-        response = genai_client.models.generate_content(model="models/gemini-1.5-flash-latest", contents=prompt)
+        response = genai_client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
         return response.text
     except Exception as e:
         print(f"Error calling Gemini API: {e}")
