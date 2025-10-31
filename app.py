@@ -128,7 +128,7 @@ def generate_ai_summary(all_tickets_data):
 Here is the data:
 {data_string}
 """
-        response = genai_client.models.generate_content(model="models/gemini-1.5-flash-latest", contents=prompt)
+        response = genai_client.models.generate_content(model="models/gemini-2.5-flash", contents=prompt)
         return response.text
     except Exception as e:
         print(f"Error calling Gemini API: {e}")
