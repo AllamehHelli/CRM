@@ -10,7 +10,7 @@ import pytz
 import pandas as pd
 from io import BytesIO, StringIO
 from sqlalchemy import func, case, or_
-import google.generativeai as genai
+from google import generativeai as genai
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a-very-secret-key-that-should-be-changed')
@@ -22,8 +22,16 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+# --- تغییر در روش راه‌اندازی ---
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+    try:
+        genai_client = genai.GenerativeModel(model_name="gemini-2.5-flash", api_key=GEMINI_API_KEY)
+    except Exception as e:
+        print(f"Could not configure Gemini client: {e}")
+        genai_client = None
+else:
+    genai_client = None
+
 
 def to_shamsi(gregorian_dt):
     if gregorian_dt is None: return ""
@@ -100,21 +108,11 @@ class Comment(db.Model):
     ticket_id = db.Column(db.Integer, db.ForeignKey('ticket.id'), nullable=False)
 
 def generate_ai_summary(ticket_descriptions, department_name):
-    if not GEMINI_API_KEY or not ticket_descriptions:
-        return "خلاصه در دسترس نیست (API Key تنظیم نشده یا تیکتی وجود ندارد)."
+    if not genai_client or not ticket_descriptions:
+        return "خلاصه در دسترس نیست."
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        
-        prompt = f"""
-        شما یک تحلیلگر متخصص CRM هستید. وظیفه شما تحلیل لیستی از توضیحات تیکت‌های اخیر برای یک بخش خاص و ارائه خلاصه‌ای کوتاه و کاربردی برای یک مدیر پرمشغله است. بر روی شناسایی موضوعات تکراری، مشکلات رایج و علل ریشه‌ای بالقوه تمرکز کنید. تیکت‌ها را یک به یک لیست نکنید. اطلاعات را در یک پاراگراف منسجم ترکیب کنید. خلاصه باید به زبان فارسی باشد.
-
-        اینجا ۱۰ توضیح آخر تیکت‌ها برای بخش '{department_name}' آمده است:
-        - {' - '.join(ticket_descriptions)}
-
-        خلاصه:
-        """
-        
-        response = model.generate_content(prompt)
+        prompt = f"""شما یک تحلیلگر متخصص CRM هستید. وظیفه شما تحلیل لیستی از توضیحات تیکت‌های اخیر برای بخش '{department_name}' و ارائه خلاصه‌ای کوتاه و کاربردی برای یک مدیر است. بر روی شناسایی موضوعات تکراری، مشکلات رایج و علل ریشه‌ای تمرکز کنید. تیکت‌ها را لیست نکنید. اطلاعات را در یک پاراگراف منسجم ترکیب کنید. خلاصه باید به زبان فارسی باشد. توضیحات تیکت‌ها: {' - '.join(ticket_descriptions)}"""
+        response = genai_client.generate_content(prompt)
         return response.text
     except Exception as e:
         print(f"Error calling Gemini API: {e}")
@@ -208,10 +206,6 @@ def reports():
     avg_resolution_days = round(avg_resolution_seconds / (24 * 3600), 1)
     oldest_open_ticket = Ticket.query.filter(Ticket.status != 'Closed').order_by(Ticket.created_at.asc()).first()
     oldest_open_ticket_age = (datetime.now(pytz.utc) - oldest_open_ticket.created_at).days if oldest_open_ticket else 0
-    
-    test_summary = generate_ai_summary(["تیکت تست ۱", "تیکت تست ۲"], "بخش آزمایشی")
-    print("AI Summary:", test_summary)
-
     tickets_by_dept = db.session.query(Department.name, func.count(Ticket.id)).join(Ticket).filter(Ticket.created_at.between(start_date, end_date)).group_by(Department.name).all()
     dept_chart_labels, dept_chart_data = [d[0] for d in tickets_by_dept], [d[1] for d in tickets_by_dept]
     tickets_by_status = db.session.query(Ticket.status, func.count(Ticket.id)).filter(Ticket.created_at.between(start_date, end_date)).group_by(Ticket.status).all()
@@ -222,6 +216,10 @@ def reports():
     operator_performance = db.session.query(User.first_name, User.last_name, Department.name, func.count(Ticket.id).label('total'), func.sum(case((Ticket.status == 'Closed', 1), else_=0)).label('closed')).join(Ticket, Department.id == Ticket.department_id).join(User, User.department_id == Department.id).filter(User.role == 'operator', Ticket.created_at.between(start_date, end_date)).group_by(User.id, Department.name).all()
     counselor_performance = db.session.query(User.first_name, User.last_name, func.count(Ticket.id)).join(Ticket, User.id == Ticket.creator_id).filter(User.role == 'counselor', Ticket.created_at.between(start_date, end_date)).group_by(User.id).all()
     department_performance = db.session.query(Department.name, func.count(Ticket.id).label('total'), func.sum(case((Ticket.status == 'Closed', 1), else_=0)).label('closed')).join(Ticket).filter(Ticket.created_at.between(start_date, end_date)).group_by(Department.name).all()
+    
+    test_summary = generate_ai_summary(["تیکت تست ۱", "تیکت تست ۲"], "بخش آزمایشی")
+    print("AI Summary:", test_summary)
+
     return render_template('reports.html', start_date=start_date_str, end_date=end_date_str, total_tickets=total_tickets, closed_tickets=closed_tickets, open_tickets=open_tickets, avg_resolution_days=avg_resolution_days, oldest_open_ticket_age=oldest_open_ticket_age, dept_chart_labels=dept_chart_labels, dept_chart_data=dept_chart_data, status_chart_labels=status_chart_labels, status_chart_data=status_chart_data, trend_labels=trend_labels, trend_data=trend_data, counselor_performance=counselor_performance, operator_performance=operator_performance, department_performance=department_performance)
 
 @app.route('/export')
@@ -429,14 +427,12 @@ def upload_students():
         return redirect(url_for('manage_students'))
     flash('فرمت فایل باید CSV باشد.', 'warning')
     return redirect(url_for('manage_students'))
-
 def create_default_departments():
     default_deps = ['کتابخوان', 'بازارهوشمند', 'آموزش', 'آزمون‌ها', 'عمومی']
     for dep_name in default_deps:
         if not Department.query.filter_by(name=dep_name).first():
             db.session.add(Department(name=dep_name))
     db.session.commit()
-
 with app.app_context():
     db.create_all()
     create_default_departments()
