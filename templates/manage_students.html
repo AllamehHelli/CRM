@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}مدیریت دانش‌آموزان{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">مدیریت دانش‌آموزان</h1>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header"><h5 class="my-0">بارگذاری فایل CSV دانش‌آموزان</h5></div>
+    <div class="card-body">
+        <p class="text-muted small">فایل CSV خود را برای افزودن یا به‌روزرسانی انبوه دانش‌آموزان انتخاب کنید. سیستم به صورت هوشمند بر اساس "helli_code" دانش‌آموزان را شناسایی می‌کند.</p>
+        <form action="{{ url_for('upload_students') }}" method="POST" enctype="multipart/form-data">
+            <div class="input-group">
+                <input type="file" class="form-control" name="file" accept=".csv" required>
+                <button class="btn btn-primary" type="submit">بارگذاری و پردازش</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header"><h5 class="my-0">لیست دانش‌آموزان</h5></div>
+    <div class="card-body">
+        <form method="GET" class="mb-3">
+            <div class="input-group">
+                <input type="text" name="search" class="form-control" placeholder="جستجو بر اساس نام، کد ملی، حلی کد یا موبایل..." value="{{ search }}">
+                <button class="btn btn-outline-secondary" type="submit">جستجو</button>
+            </div>
+        </form>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-light">
+                    <tr><th>حلی کد</th><th>نام کامل</th><th>پایه</th><th>موبایل</th><th>کد ملی</th></tr>
+                </thead>
+                <tbody>
+                    {% for student in students.items %}
+                    <tr>
+                        <td>{{ student.helli_code }}</td>
+                        <td>{{ student.first_name }} {{ student.last_name }}</td>
+                        <td>{{ student.grade }}</td>
+                        <td>{{ student.student_mobile }}</td>
+                        <td>{{ student.national_id }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5" class="text-center">هیچ دانش‌آموزی یافت نشد.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- Pagination -->
+        <nav>
+            <ul class="pagination justify-content-center">
+                {% if students.has_prev %}<li class="page-item"><a class="page-link" href="{{ url_for('manage_students', page=students.prev_num, search=search) }}">قبلی</a></li>{% endif %}
+                {% for page_num in students.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                    {% if page_num %}
+                        {% if students.page == page_num %}<li class="page-item active"><a class="page-link">{{ page_num }}</a></li>{% else %}<li class="page-item"><a class="page-link" href="{{ url_for('manage_students', page=page_num, search=search) }}">{{ page_num }}</a></li>{% endif %}
+                    {% else %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
+                {% endfor %}
+                {% if students.has_next %}<li class="page-item"><a class="page-link" href="{{ url_for('manage_students', page=students.next_num, search=search) }}">بعدی</a></li>{% endif %}
+            </ul>
+        </nav>
+    </div>
+</div>
+{% endblock %}
