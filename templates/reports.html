@@ -28,14 +28,20 @@
 
 <!-- کارت‌های KPI -->
 <div class="row">
-    <div class="col-md-3 mb-4"><div class="card text-white bg-primary shadow h-100"><div class="card-body"><h5 class="card-title">کل تیکت‌ها</h5><p class="card-text fs-2 fw-bold">{{ total_tickets }}</p></div></div></div>
-    <div class="col-md-3 mb-4"><div class="card text-white bg-danger shadow h-100"><div class="card-body"><h5 class="card-title">تیکت‌های باز</h5><p class="card-text fs-2 fw-bold">{{ open_tickets }}</p></div></div></div>
-    <div class="col-md-3 mb-4"><div class="card text-white bg-success shadow h-100"><div class="card-body"><h5 class="card-title">تیکت‌های حل شده</h5><p class="card-text fs-2 fw-bold">{{ closed_tickets }}</p></div></div></div>
-    <div class="col-md-3 mb-4"><div class="card text-white bg-info shadow h-100"><div class="card-body"><h5 class="card-title">میانگین زمان حل (روز)</h5><p class="card-text fs-2 fw-bold">{{ avg_resolution_days }}</p></div></div></div>
+    <div class="col-lg-3 col-md-6 mb-4"><div class="card text-white bg-primary shadow h-100"><div class="card-body"><h5 class="card-title">کل تیکت‌ها (در بازه)</h5><p class="card-text fs-2 fw-bold">{{ total_tickets }}</p></div></div></div>
+    <div class="col-lg-3 col-md-6 mb-4"><div class="card text-white bg-danger shadow h-100"><div class="card-body"><h5 class="card-title">تیکت‌های باز (در بازه)</h5><p class="card-text fs-2 fw-bold">{{ open_tickets }}</p></div></div></div>
+    <div class="col-lg-3 col-md-6 mb-4"><div class="card text-white bg-success shadow h-100"><div class="card-body"><h5 class="card-title">تیکت‌های حل شده (در بازه)</h5><p class="card-text fs-2 fw-bold">{{ closed_tickets }}</p></div></div></div>
+    <div class="col-lg-3 col-md-6 mb-4"><div class="card text-white bg-warning shadow h-100"><div class="card-body"><h5 class="card-title">عمر قدیمی‌ترین تیکت باز (روز)</h5><p class="card-text fs-2 fw-bold">{{ oldest_open_ticket_age }}</p></div></div></div>
 </div>
 
 <!-- نمودارها -->
 <div class="row">
+    <div class="col-lg-12 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header">روند ایجاد تیکت‌های روزانه</div>
+            <div class="card-body"><canvas id="trendChart"></canvas></div>
+        </div>
+    </div>
     <div class="col-md-6 mb-4">
         <div class="card shadow-sm h-100">
             <div class="card-header">توزیع تیکت‌ها بر اساس بخش</div>
@@ -52,28 +58,22 @@
 
 <!-- جداول عملکرد -->
 <div class="row">
-    <div class="col-md-6 mb-4">
+    <div class="col-md-4 mb-4">
         <div class="card shadow-sm">
-            <div class="card-header">عملکرد بخش‌ها</div>
-            <div class="card-body table-responsive">
-                <table class="table table-sm"><thead><tr><th>بخش</th><th>کل تیکت‌ها</th><th>حل شده</th><th>نرخ حل</th></tr></thead>
-                <tbody>
-                {% for row in department_performance %}
-                    <tr><td>{{ row.name }}</td><td>{{ row.total }}</td><td>{{ row.closed or 0 }}</td><td>{{ "%.1f"|format((row.closed or 0) * 100 / row.total) if row.total > 0 else 0.0 }}%</td></tr>
-                {% endfor %}
-                </tbody></table>
-            </div>
+            <div class="card-header">عملکرد مشاوران</div>
+            <div class="card-body table-responsive"><table class="table table-sm"><thead><tr><th>نام مشاور</th><th>تیکت ثبت شده</th></tr></thead><tbody>{% for row in counselor_performance %}<tr><td>{{ row.first_name }} {{ row.last_name }}</td><td>{{ row[2] }}</td></tr>{% endfor %}</tbody></table></div>
         </div>
     </div>
-    <div class="col-md-6 mb-4">
+    <div class="col-md-8 mb-4">
         <div class="card shadow-sm">
-            <div class="card-header">عملکرد مشاوران (تعداد تیکت ثبت شده)</div>
+            <div class="card-header">عملکرد بخش‌ها و اپراتورها</div>
             <div class="card-body table-responsive">
-                <table class="table table-sm"><thead><tr><th>نام مشاور</th><th>تعداد تیکت</th></tr></thead>
-                <tbody>
-                {% for row in counselor_performance %}
-                    <tr><td>{{ row.first_name }} {{ row.last_name }}</td><td>{{ row[2] }}</td></tr>
-                {% endfor %}
+                <table class="table table-sm"><thead><tr><th>بخش</th><th>کل تیکت‌ها</th><th>حل شده</th><th>نرخ حل</th></tr></thead><tbody>
+                {% for row in department_performance %}<tr><td><strong>{{ row.name }}</strong></td><td>{{ row.total }}</td><td>{{ row.closed or 0 }}</td><td>{{ "%.1f"|format((row.closed or 0) * 100 / row.total) if row.total > 0 else 0.0 }}%</td></tr>{% endfor %}
+                </tbody></table>
+                <hr>
+                <table class="table table-sm table-borderless"><thead><tr><th>اپراتور</th><th>بخش</th><th>تیکت‌های رسیدگی شده</th><th>تیکت‌های حل شده</th></tr></thead><tbody>
+                {% for row in operator_performance %}<tr><td>{{ row.first_name }} {{ row.last_name }}</td><td><small>{{ row.name }}</small></td><td>{{ row.total }}</td><td>{{ row.closed or 0 }}</td></tr>{% endfor %}
                 </tbody></table>
             </div>
         </div>
@@ -84,41 +84,39 @@
 {% block scripts %}
 <script>
     $(document).ready(function() {
-        // --- کد اصلاح شده برای تقویم ---
-        $(".datepicker").persianDatepicker({
-            format: 'YYYY/MM/DD',
-            autoClose: true,
-            observer: true,
-            // این خط مهم از مقداردهی اولیه اشتباه جلوگیری می‌کند
-            initialValue: false 
-        });
+        $(".datepicker").persianDatepicker({ format: 'YYYY/MM/DD', autoClose: true, observer: true, initialValue: false });
 
-        // نمودار بخش‌ها
-        const deptCtx = document.getElementById('deptChart').getContext('2d');
-        new Chart(deptCtx, {
-            type: 'doughnut',
+        const trendCtx = document.getElementById('trendChart').getContext('2d');
+        new Chart(trendCtx, {
+            type: 'line',
             data: {
-                labels: {{ dept_chart_labels|tojson }},
+                labels: {{ trend_labels|tojson }},
                 datasets: [{
-                    label: 'تعداد تیکت',
-                    data: {{ dept_chart_data|tojson }},
-                    backgroundColor: ['#0d6efd', '#6f42c1', '#d63384', '#fd7e14', '#198754', '#dc3545', '#ffc107'],
+                    label: 'تیکت‌های ایجاد شده',
+                    data: {{ trend_data|tojson }},
+                    borderColor: '#0d6efd',
+                    tension: 0.1
                 }]
             },
             options: { responsive: true, maintainAspectRatio: false }
         });
 
-        // نمودار وضعیت‌ها
+        const deptCtx = document.getElementById('deptChart').getContext('2d');
+        new Chart(deptCtx, {
+            type: 'doughnut',
+            data: {
+                labels: {{ dept_chart_labels|tojson }},
+                datasets: [{ label: 'تعداد تیکت', data: {{ dept_chart_data|tojson }}, backgroundColor: ['#0d6efd', '#6f42c1', '#d63384', '#fd7e14', '#198754', '#dc3545', '#ffc107'] }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
         const statusCtx = document.getElementById('statusChart').getContext('2d');
         new Chart(statusCtx, {
             type: 'pie',
             data: {
                 labels: {{ status_chart_labels|tojson }},
-                datasets: [{
-                    label: 'تعداد تیکت',
-                    data: {{ status_chart_data|tojson }},
-                    backgroundColor: ['#6c757d', '#0d6efd', '#198754'],
-                }]
+                datasets: [{ label: 'تعداد تیکت', data: {{ status_chart_data|tojson }}, backgroundColor: ['#6c757d', '#0d6efd', '#198754'] }]
             },
             options: { responsive: true, maintainAspectRatio: false }
         });
