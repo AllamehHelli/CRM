@@ -2,31 +2,6 @@
 {% block title %}داشبورد اصلی{% endblock %}
 
 {% block content %}
-
-{% if current_user.role == 'admin' %}
-<div class="card shadow-sm mb-4">
-    <div class="card-header"><h5 class="my-0"><i class="bi bi-funnel"></i> فیلتر و جستجو</h5></div>
-    <div class="card-body">
-        <form method="GET" action="{{ url_for('index') }}" id="filter-form">
-            <div class="row g-3">
-                <div class="col-md-3"><label class="form-label">بخش</label><select name="department" class="form-select"><option value="">همه</option>{% for d in departments %}<option value="{{ d.id }}" {% if request.args.get('department') == d.id|string %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></div>
-                <div class="col-md-3"><label class="form-label">ایجاد کننده</label><select name="creator" class="form-select"><option value="">همه</option>{% for c in creators %}<option value="{{ c.id }}" {% if request.args.get('creator') == c.id|string %}selected{% endif %}>{{ c.first_name }} {{ c.last_name }}</option>{% endfor %}</select></div>
-                <div class="col-md-3"><label class="form-label">وضعیت</label><select name="status" class="form-select"><option value="">همه</option><option value="New" {% if request.args.get('status') == 'New' %}selected{% endif %}>جدید</option><option value="In Progress" {% if request.args.get('status') == 'In Progress' %}selected{% endif %}>در حال بررسی</option><option value="Closed" {% if request.args.get('status') == 'Closed' %}selected{% endif %}>بسته شده</option></select></div>
-            </div>
-            <div class="row g-3 mt-2">
-                <div class="col-md-3"><label class="form-label">از تاریخ</label><input type="text" name="start_date" class="form-control datepicker" value="{{ request.args.get('start_date', '') }}" autocomplete="off"></div>
-                <div class="col-md-3"><label class="form-label">تا تاریخ</label><input type="text" name="end_date" class="form-control datepicker" value="{{ request.args.get('end_date', '') }}" autocomplete="off"></div>
-                <div class="col-md-6 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary me-2">اعمال فیلتر</button>
-                    <a href="{{ url_for('index') }}" class="btn btn-secondary me-2">پاک کردن</a>
-                    <a id="export-btn" href="{{ url_for('export_excel') }}" class="btn btn-success"><i class="bi bi-file-earmark-excel"></i> خروجی اکسل</a>
-                </div>
-            </div>
-        </form>
-    </div>
-</div>
-{% endif %}
-
 {% if current_user.role != 'operator' %}
 <div class="card shadow-sm mb-4">
     <div class="card-header"><h4 class="my-0 fw-normal">ثبت تیکت جدید</h4></div>
@@ -88,10 +63,6 @@
 {% block scripts %}
 <script type="text/javascript">
 $(document).ready(function() {
-    // اسکریپت تقویم شمسی برای فیلترها
-    $(".datepicker").persianDatepicker({ format: 'YYYY/MM/DD', autoClose: true, observer: true, initialValue: false });
-
-    // اسکریپت جستجوی خودکار دانش‌آموز
     $('#search_term').on('blur', function() {
         const term = $(this).val();
         if (term.length > 3) {
@@ -109,24 +80,13 @@ $(document).ready(function() {
                         $('#student_mobile').val(data.student_mobile || '');
                         $('#parent_mobile').val(data.parent_mobile || '');
                     } else {
+                        // اگر دانش‌آموز پیدا نشد، فیلد ID مخفی را خالی می‌کند
                         $('#student_id').val('');
                     }
                 }
             });
         }
     });
-
-    // اسکریپت به‌روزرسانی لینک اکسل
-    function updateExportLink() {
-        var form = document.getElementById('filter-form');
-        if (form) {
-            var queryParams = new URLSearchParams(new FormData(form)).toString();
-            var exportLink = document.getElementById('export-btn');
-            exportLink.href = "{{ url_for('export_excel') }}" + "?" + queryParams;
-        }
-    }
-    $('#filter-form').on('change', updateExportLink);
-    updateExportLink();
 });
 </script>
 {% endblock %}
