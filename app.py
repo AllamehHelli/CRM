@@ -100,7 +100,17 @@ def load_user(user_id):
 @login_required
 def index():
     departments = Department.query.all()
-    tickets = Ticket.query.order_by(Ticket.created_at.desc()).limit(10).all()
+    query = Ticket.query
+    if current_user.role == 'admin':
+        # ادمین همه تیکت‌ها را می‌بیند
+        tickets = query.order_by(Ticket.created_at.desc()).limit(10).all()
+    elif current_user.role == 'operator':
+        # اپراتور فقط تیکت‌های بخش خودش را می‌بیند
+        tickets = query.filter_by(department_id=current_user.department_id).order_by(Ticket.created_at.desc()).limit(10).all()
+    else: # counselor
+        # مشاور فقط تیکت‌هایی که خودش ساخته را می‌بیند
+        tickets = query.filter_by(creator_id=current_user.id).order_by(Ticket.created_at.desc()).limit(10).all()
+    
     return render_template('index.html', tickets=tickets, departments=departments)
 
 @app.route('/tickets')
@@ -269,7 +279,7 @@ def update_status(ticket_id):
     if not (is_admin or is_operator): abort(403)
     ticket.status = request.form['status']
     db.session.commit()
-    return redirect(url_for('ticket_detail', ticket_id=ticket_id))
+    return redirect(url_for('ticket_detail', ticket_id=ticket.id))
 
 @app.route('/ticket/<int:ticket_id>/delete', methods=['POST'])
 @login_required
@@ -372,14 +382,12 @@ def upload_students():
         return redirect(url_for('manage_students'))
     flash('فرمت فایل باید CSV باشد.', 'warning')
     return redirect(url_for('manage_students'))
-
 def create_default_departments():
     default_deps = ['کتابخوان', 'بازارهوشمند', 'آموزش', 'آزمون‌ها', 'عمومی']
     for dep_name in default_deps:
         if not Department.query.filter_by(name=dep_name).first():
             db.session.add(Department(name=dep_name))
     db.session.commit()
-
 with app.app_context():
     db.create_all()
     create_default_departments()
