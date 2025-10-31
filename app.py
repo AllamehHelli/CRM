@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import jdatetime
 import pytz
 import pandas as pd
-from io import BytesIO, StringIO # <--- خط گمشده اینجا اضافه شده است
+from io import BytesIO, StringIO
 from sqlalchemy import func, case, or_
 
 app = Flask(__name__)
@@ -345,63 +345,31 @@ def manage_students():
 @admin_required
 def upload_students():
     if 'file' not in request.files or request.files['file'].filename == '':
-        flash('هیچ فایلی انتخاب نشده است.', 'danger')
-        return redirect(url_for('manage_students'))
+        flash('هیچ فایلی انتخاب نشده است.', 'danger'); return redirect(url_for('manage_students'))
     file = request.files['file']
     if file and file.filename.endswith('.csv'):
         try:
             stream = StringIO(file.stream.read().decode("UTF8"), newline=None)
-            df = pd.read_csv(stream, dtype=str) # خواندن همه ستون‌ها به صورت رشته
-            
+            df = pd.read_csv(stream, dtype=str)
             updated_count, added_count = 0, 0
-            
             for index, row in df.iterrows():
-                # اولویت با حلی کد، سپس کد ملی، سپس موبایل
                 student = None
-                if 'helli_code' in row and pd.notna(row['helli_code']):
-                    student = Student.query.filter_by(helli_code=str(row['helli_code'])).first()
-                if not student and 'national_id' in row and pd.notna(row['national_id']):
-                    student = Student.query.filter_by(national_id=str(row['national_id'])).first()
-                if not student and 'student_mobile' in row and pd.notna(row['student_mobile']):
-                    student = Student.query.filter_by(student_mobile=str(row['student_mobile'])).first()
-                
+                if 'helli_code' in row and pd.notna(row['helli_code']): student = Student.query.filter_by(helli_code=str(row['helli_code'])).first()
+                if not student and 'national_id' in row and pd.notna(row['national_id']): student = Student.query.filter_by(national_id=str(row['national_id'])).first()
+                if not student and 'student_mobile' in row and pd.notna(row['student_mobile']): student = Student.query.filter_by(student_mobile=str(row['student_mobile'])).first()
                 if student:
-                    # Update existing student
-                    student.national_id = str(row.get('national_id', student.national_id)) if pd.notna(row.get('national_id')) else student.national_id
-                    student.first_name = row.get('first_name', student.first_name)
-                    student.last_name = row.get('last_name', student.last_name)
-                    student.gender = row.get('gender', student.gender)
-                    student.grade = row.get('grade', student.grade)
-                    student.province = row.get('province', student.province)
-                    student.student_mobile = str(row.get('student_mobile', student.student_mobile)) if pd.notna(row.get('student_mobile')) else student.student_mobile
-                    student.parent_mobile = str(row.get('parent_mobile', student.parent_mobile)) if pd.notna(row.get('parent_mobile')) else student.parent_mobile
-                    student.emergency_mobile = str(row.get('emergency_mobile', student.emergency_mobile)) if pd.notna(row.get('emergency_mobile')) else student.emergency_mobile
+                    student.national_id, student.first_name, student.last_name, student.gender, student.grade, student.province, student.student_mobile, student.parent_mobile, student.emergency_mobile = str(row.get('national_id')), row.get('first_name'), row.get('last_name'), row.get('gender'), row.get('grade'), row.get('province'), str(row.get('student_mobile')), str(row.get('parent_mobile')), str(row.get('emergency_mobile'))
                     updated_count += 1
                 else:
-                    # Add new student
-                    new_student = Student(
-                        helli_code=str(row.get('helli_code')) if pd.notna(row.get('helli_code')) else None,
-                        national_id=str(row.get('national_id')) if pd.notna(row.get('national_id')) else None,
-                        first_name=row.get('first_name'),
-                        last_name=row.get('last_name'),
-                        gender=row.get('gender'),
-                        grade=row.get('grade'),
-                        province=row.get('province'),
-                        student_mobile=str(row.get('student_mobile')) if pd.notna(row.get('student_mobile')) else None,
-                        parent_mobile=str(row.get('parent_mobile')) if pd.notna(row.get('parent_mobile')) else None,
-                        emergency_mobile=str(row.get('emergency_mobile')) if pd.notna(row.get('emergency_mobile')) else None
-                    )
+                    new_student = Student(helli_code=str(row.get('helli_code')) if pd.notna(row.get('helli_code')) else None, national_id=str(row.get('national_id')) if pd.notna(row.get('national_id')) else None, first_name=row.get('first_name'), last_name=row.get('last_name'), gender=row.get('gender'), grade=row.get('grade'), province=row.get('province'), student_mobile=str(row.get('student_mobile')) if pd.notna(row.get('student_mobile')) else None, parent_mobile=str(row.get('parent_mobile')) if pd.notna(row.get('parent_mobile')) else None, emergency_mobile=str(row.get('emergency_mobile')) if pd.notna(row.get('emergency_mobile')) else None)
                     db.session.add(new_student)
                     added_count += 1
-            
             db.session.commit()
-            flash(f'فایل با موفقیت پردازش شد. {added_count} دانش‌آموز جدید اضافه و {updated_count} دانش‌آموز به‌روزرسانی شدند.', 'success')
+            flash(f'فایل با موفقیت پردازش شد. {added_count} دانش‌آموز جدید و {updated_count} دانش‌آموز به‌روزرسانی شدند.', 'success')
         except Exception as e:
             db.session.rollback()
             flash(f'خطا در پردازش فایل: {e}', 'danger')
-        
         return redirect(url_for('manage_students'))
-        
     flash('فرمت فایل باید CSV باشد.', 'warning')
     return redirect(url_for('manage_students'))
 
