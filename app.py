@@ -10,7 +10,6 @@ import pytz
 import pandas as pd
 from io import BytesIO, StringIO
 from sqlalchemy import func, case, or_
-# --- اصلاح مهم در این خط ---
 from google import genai as google_genai
 
 app = Flask(__name__)
@@ -111,7 +110,7 @@ def generate_ai_summary(ticket_descriptions, department_name):
         return "خلاصه در دسترس نیست."
     try:
         prompt = f"""شما یک تحلیلگر متخصص CRM هستید. وظیفه شما تحلیل لیستی از توضیحات تیکت‌های اخیر برای بخش '{department_name}' و ارائه خلاصه‌ای کوتاه و کاربردی برای یک مدیر است. بر روی شناسایی موضوعات تکراری، مشکلات رایج و علل ریشه‌ای تمرکز کنید. تیکت‌ها را لیست نکنید. اطلاعات را در یک پاراگراف منسجم ترکیب کنید. خلاصه باید به زبان فارسی باشد. توضیحات تیکت‌ها: {' - '.join(ticket_descriptions)}"""
-        response = genai_client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+        response = genai_client.models.generate_content(model="models/gemini-2.5-flash", contents=prompt)
         return response.text
     except Exception as e:
         print(f"Error calling Gemini API: {e}")
@@ -206,8 +205,17 @@ def reports():
     oldest_open_ticket = Ticket.query.filter(Ticket.status != 'Closed').order_by(Ticket.created_at.asc()).first()
     oldest_open_ticket_age = (datetime.now(pytz.utc) - oldest_open_ticket.created_at).days if oldest_open_ticket else 0
     
-    test_summary = generate_ai_summary(["تیکت تست ۱", "تیکت تست ۲"], "بخش آزمایشی")
-    print("AI Summary:", test_summary)
+    # --- منطق جدید برای تولید خلاصه‌های هوشمند ---
+    ai_summaries = {}
+    all_departments = Department.query.all()
+    for dept in all_departments:
+        # ۱۰ تیکت آخر هر بخش را جداگانه می‌گیریم
+        recent_tickets = Ticket.query.filter_by(department_id=dept.id).order_by(Ticket.created_at.desc()).limit(10).all()
+        # فقط توضیحات آن‌ها را به تابع هوش مصنوعی می‌دهیم
+        descriptions = [t.description for t in recent_tickets]
+        if descriptions:
+            summary = generate_ai_summary(descriptions, dept.name)
+            ai_summaries[dept.name] = summary
 
     tickets_by_dept = db.session.query(Department.name, func.count(Ticket.id)).join(Ticket).filter(Ticket.created_at.between(start_date, end_date)).group_by(Department.name).all()
     dept_chart_labels, dept_chart_data = [d[0] for d in tickets_by_dept], [d[1] for d in tickets_by_dept]
@@ -219,7 +227,8 @@ def reports():
     operator_performance = db.session.query(User.first_name, User.last_name, Department.name, func.count(Ticket.id).label('total'), func.sum(case((Ticket.status == 'Closed', 1), else_=0)).label('closed')).join(Ticket, Department.id == Ticket.department_id).join(User, User.department_id == Department.id).filter(User.role == 'operator', Ticket.created_at.between(start_date, end_date)).group_by(User.id, Department.name).all()
     counselor_performance = db.session.query(User.first_name, User.last_name, func.count(Ticket.id)).join(Ticket, User.id == Ticket.creator_id).filter(User.role == 'counselor', Ticket.created_at.between(start_date, end_date)).group_by(User.id).all()
     department_performance = db.session.query(Department.name, func.count(Ticket.id).label('total'), func.sum(case((Ticket.status == 'Closed', 1), else_=0)).label('closed')).join(Ticket).filter(Ticket.created_at.between(start_date, end_date)).group_by(Department.name).all()
-    return render_template('reports.html', start_date=start_date_str, end_date=end_date_str, total_tickets=total_tickets, closed_tickets=closed_tickets, open_tickets=open_tickets, avg_resolution_days=avg_resolution_days, oldest_open_ticket_age=oldest_open_ticket_age, dept_chart_labels=dept_chart_labels, dept_chart_data=dept_chart_data, status_chart_labels=status_chart_labels, status_chart_data=status_chart_data, trend_labels=trend_labels, trend_data=trend_data, counselor_performance=counselor_performance, operator_performance=operator_performance, department_performance=department_performance)
+
+    return render_template('reports.html', start_date=start_date_str, end_date=end_date_str, total_tickets=total_tickets, closed_tickets=closed_tickets, open_tickets=open_tickets, avg_resolution_days=avg_resolution_days, oldest_open_ticket_age=oldest_open_ticket_age, dept_chart_labels=dept_chart_labels, dept_chart_data=dept_chart_data, status_chart_labels=status_chart_labels, status_chart_data=status_chart_data, trend_labels=trend_labels, trend_data=trend_data, counselor_performance=counselor_performance, operator_performance=operator_performance, department_performance=department_performance, ai_summaries=ai_summaries, all_departments=all_departments)
 
 @app.route('/export')
 @login_required
@@ -311,7 +320,7 @@ def edit_ticket(ticket_id):
     if request.method == 'POST':
         ticket.title, ticket.department_id, ticket.description = request.form['title'], request.form['department_id'], request.form['description']
         db.session.commit()
-        return redirect(url_for('ticket_detail', ticket_id=ticket_id))
+        return redirect(url_for('ticket_detail', ticket_id=ticket.id))
     departments = Department.query.all()
     return render_template('edit_ticket.html', ticket=ticket, departments=departments)
 
