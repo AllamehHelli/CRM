@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import jdatetime
 import pytz
 import pandas as pd
-from io import BytesIO
+from io import BytesIO, StringIO
 from sqlalchemy import func, case, or_
 
 app = Flask(__name__)
@@ -65,9 +65,12 @@ class Student(db.Model):
     national_id = db.Column(db.String(20), unique=True, nullable=True)
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
+    gender = db.Column(db.String(10))
     grade = db.Column(db.String(20))
+    province = db.Column(db.String(50))
     student_mobile = db.Column(db.String(20), unique=True, nullable=True)
     parent_mobile = db.Column(db.String(20))
+    emergency_mobile = db.Column(db.String(20))
     tickets = db.relationship('Ticket', backref='student', lazy=True)
 
 class Ticket(db.Model):
@@ -109,7 +112,7 @@ def index():
         tickets = query.order_by(Ticket.created_at.desc()).all()
     elif current_user.role == 'operator':
         tickets = query.filter_by(department_id=current_user.department_id).order_by(Ticket.created_at.desc()).all()
-    else: # counselor
+    else:
         tickets = query.filter_by(creator_id=current_user.id).order_by(Ticket.created_at.desc()).all()
     departments = Department.query.all()
     return render_template('index.html', tickets=tickets, departments=departments, creators=creators)
@@ -129,53 +132,23 @@ def find_student():
 def create():
     student_id = request.form.get('student_id')
     student = None
-
-    if student_id:
-        student = Student.query.get(student_id)
-    else:
-        # اگر دانش‌آموز از طریق جستجو پیدا نشده، سعی می‌کنیم بر اساس اطلاعات فرم او را پیدا یا ایجاد کنیم
+    if student_id: student = Student.query.get(student_id)
+    if not student:
         national_id = request.form.get('national_id')
         student_mobile = request.form.get('student_mobile')
-        if national_id:
-            student = Student.query.filter_by(national_id=national_id).first()
-        if not student and student_mobile:
-            student = Student.query.filter_by(student_mobile=student_mobile).first()
-
+        if national_id: student = Student.query.filter_by(national_id=national_id).first()
+        if not student and student_mobile: student = Student.query.filter_by(student_mobile=student_mobile).first()
     if student:
-        # اگر دانش‌آموز موجود است، اطلاعاتش را آپدیت می‌کنیم
-        student.first_name = request.form['first_name']
-        student.last_name = request.form['last_name']
-        student.grade = request.form.get('grade')
-        student.parent_mobile = request.form.get('parent_mobile')
-        # ... سایر فیلدها ...
+        student.first_name, student.last_name, student.grade, student.parent_mobile = request.form['first_name'], request.form['last_name'], request.form.get('grade'), request.form.get('parent_mobile')
     else:
-        # اگر دانش‌آموز اصلاً وجود ندارد، یکی جدید می‌سازیم
-        student = Student(
-            national_id=request.form.get('national_id') or None,
-            student_mobile=request.form.get('student_mobile') or None,
-            first_name=request.form['first_name'],
-            last_name=request.form['last_name'],
-            helli_code=request.form.get('helli_code') or None,
-            grade=request.form.get('grade'),
-            parent_mobile=request.form.get('parent_mobile')
-        )
+        student = Student(national_id=request.form.get('national_id') or None, student_mobile=request.form.get('student_mobile') or None, first_name=request.form['first_name'], last_name=request.form['last_name'], helli_code=request.form.get('helli_code') or None, grade=request.form.get('grade'), parent_mobile=request.form.get('parent_mobile'))
         db.session.add(student)
-    
-    # باید flush کنیم تا student.id در دسترس قرار گیرد
     db.session.flush()
-    
-    new_ticket = Ticket(
-        title=request.form['title'],
-        description=request.form['description'],
-        department_id=request.form['department_id'],
-        creator_id=current_user.id,
-        student_id=student.id
-    )
+    new_ticket = Ticket(title=request.form['title'], description=request.form['description'], department_id=request.form['department_id'], creator_id=current_user.id, student_id=student.id)
     db.session.add(new_ticket)
     db.session.commit()
-    flash('تیکت با موفقیت ثبت شد.', 'success')
     return redirect(url_for('index'))
-    
+
 @app.route('/reports')
 @login_required
 @admin_required
@@ -344,6 +317,85 @@ def delete_user(user_id):
         db.session.delete(user); db.session.commit()
         flash(f'کاربر "{user.username}" حذف شد.', 'success')
     return redirect(url_for('manage_users'))
+
+@app.route('/manage_students')
+@login_required
+@admin_required
+def manage_students():
+    page = request.args.get('page', 1, type=int)
+    search = request.args.get('search', '')
+    query = Student.query.order_by(Student.last_name)
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(or_(
+            Student.helli_code.ilike(search_term),
+            Student.national_id.ilike(search_term),
+            Student.student_mobile.ilike(search_term),
+            func.concat(Student.first_name, ' ', Student.last_name).ilike(search_term)
+        ))
+    students = query.paginate(page=page, per_page=15)
+    return render_template('manage_students.html', students=students, search=search)
+
+@app.route('/upload_students', methods=['POST'])
+@login_required
+@admin_required
+def upload_students():
+    if 'file' not in request.files:
+        flash('هیچ فایلی انتخاب نشده است.', 'danger')
+        return redirect(url_for('manage_students'))
+    file = request.files['file']
+    if file.filename == '':
+        flash('هیچ فایلی انتخاب نشده است.', 'danger')
+        return redirect(url_for('manage_students'))
+    if file and file.filename.endswith('.csv'):
+        try:
+            stream = StringIO(file.stream.read().decode("UTF8"), newline=None)
+            df = pd.read_csv(stream)
+            
+            updated_count = 0
+            added_count = 0
+            
+            for index, row in df.iterrows():
+                student = Student.query.filter_by(helli_code=str(row['helli_code'])).first()
+                if student:
+                    # Update existing student
+                    student.national_id = str(row.get('national_id', student.national_id))
+                    student.first_name = row.get('first_name', student.first_name)
+                    student.last_name = row.get('last_name', student.last_name)
+                    student.gender = row.get('gender', student.gender)
+                    student.grade = row.get('grade', student.grade)
+                    student.province = row.get('province', student.province)
+                    student.student_mobile = str(row.get('student_mobile', student.student_mobile))
+                    student.parent_mobile = str(row.get('parent_mobile', student.parent_mobile))
+                    student.emergency_mobile = str(row.get('emergency_mobile', student.emergency_mobile))
+                    updated_count += 1
+                else:
+                    # Add new student
+                    new_student = Student(
+                        helli_code=str(row.get('helli_code')),
+                        national_id=str(row.get('national_id')),
+                        first_name=row.get('first_name'),
+                        last_name=row.get('last_name'),
+                        gender=row.get('gender'),
+                        grade=row.get('grade'),
+                        province=row.get('province'),
+                        student_mobile=str(row.get('student_mobile')),
+                        parent_mobile=str(row.get('parent_mobile')),
+                        emergency_mobile=str(row.get('emergency_mobile'))
+                    )
+                    db.session.add(new_student)
+                    added_count += 1
+            
+            db.session.commit()
+            flash(f'فایل با موفقیت پردازش شد. {added_count} دانش‌آموز جدید اضافه و {updated_count} دانش‌آموز به‌روزرسانی شدند.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'خطا در پردازش فایل: {e}', 'danger')
+        
+        return redirect(url_for('manage_students'))
+        
+    flash('فرمت فایل باید CSV باشد.', 'warning')
+    return redirect(url_for('manage_students'))
 
 def create_default_departments():
     default_deps = ['کتابخوان', 'بازارهوشمند', 'آموزش', 'آزمون‌ها', 'عمومی']
