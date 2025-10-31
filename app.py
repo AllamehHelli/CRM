@@ -10,6 +10,7 @@ import pytz
 import pandas as pd
 from io import BytesIO, StringIO
 from sqlalchemy import func, case, or_
+import google.generativeai as genai
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a-very-secret-key-that-should-be-changed')
@@ -20,14 +21,15 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
+# --- تنظیمات API هوش مصنوعی ---
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+
 def to_shamsi(gregorian_dt):
     if gregorian_dt is None: return ""
-    # بررسی می‌کنیم که ورودی از نوع date است یا datetime
     if isinstance(gregorian_dt, date) and not isinstance(gregorian_dt, datetime):
-        # اگر فقط date بود، مستقیم به شمسی تبدیل می‌کنیم
         return jdatetime.date.fromgregorian(date=gregorian_dt).strftime('%Y/%m/%d')
-    
-    # اگر datetime بود، مثل قبل منطقه زمانی را اعمال می‌کنیم
     tehran_tz = pytz.timezone("Asia/Tehran")
     local_time = gregorian_dt.astimezone(tehran_tz)
     jalali_datetime = jdatetime.datetime.fromgregorian(datetime=local_time)
@@ -97,6 +99,28 @@ class Comment(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), server_default=db.func.now())
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     ticket_id = db.Column(db.Integer, db.ForeignKey('ticket.id'), nullable=False)
+
+def generate_ai_summary(ticket_descriptions, department_name):
+    if not GEMINI_API_KEY or not ticket_descriptions:
+        return "خلاصه در دسترس نیست (API Key تنظیم نشده یا تیکتی وجود ندارد)."
+
+    try:
+        model = genai.GenerativeModel('gemini-pro')
+        
+        prompt = f"""
+        شما یک تحلیلگر متخصص CRM هستید. وظیفه شما تحلیل لیستی از توضیحات تیکت‌های اخیر برای یک بخش خاص و ارائه خلاصه‌ای کوتاه و کاربردی برای یک مدیر پرمشغله است. بر روی شناسایی موضوعات تکراری، مشکلات رایج و علل ریشه‌ای بالقوه تمرکز کنید. تیکت‌ها را یک به یک لیست نکنید. اطلاعات را در یک پاراگراف منسجم ترکیب کنید. خلاصه باید به زبان فارسی باشد.
+
+        اینجا ۱۰ توضیح آخر تیکت‌ها برای بخش '{department_name}' آمده است:
+        - {' - '.join(ticket_descriptions)}
+
+        خلاصه:
+        """
+        
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        print(f"Error calling Gemini API: {e}")
+        return f"خطا در تولید خلاصه: {e}"
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -196,6 +220,11 @@ def reports():
     operator_performance = db.session.query(User.first_name, User.last_name, Department.name, func.count(Ticket.id).label('total'), func.sum(case((Ticket.status == 'Closed', 1), else_=0)).label('closed')).join(Ticket, Department.id == Ticket.department_id).join(User, User.department_id == Department.id).filter(User.role == 'operator', Ticket.created_at.between(start_date, end_date)).group_by(User.id, Department.name).all()
     counselor_performance = db.session.query(User.first_name, User.last_name, func.count(Ticket.id)).join(Ticket, User.id == Ticket.creator_id).filter(User.role == 'counselor', Ticket.created_at.between(start_date, end_date)).group_by(User.id).all()
     department_performance = db.session.query(Department.name, func.count(Ticket.id).label('total'), func.sum(case((Ticket.status == 'Closed', 1), else_=0)).label('closed')).join(Ticket).filter(Ticket.created_at.between(start_date, end_date)).group_by(Department.name).all()
+    
+    # --- تست ارتباط با هوش مصنوعی ---
+    test_summary = generate_ai_summary(["تیکت تست ۱", "تیکت تست ۲"], "بخش آزمایشی")
+    print("AI Summary:", test_summary) # این در لاگ‌های Render چاپ خواهد شد
+
     return render_template('reports.html', start_date=start_date_str, end_date=end_date_str, total_tickets=total_tickets, closed_tickets=closed_tickets, open_tickets=open_tickets, avg_resolution_days=avg_resolution_days, oldest_open_ticket_age=oldest_open_ticket_age, dept_chart_labels=dept_chart_labels, dept_chart_data=dept_chart_data, status_chart_labels=status_chart_labels, status_chart_data=status_chart_data, trend_labels=trend_labels, trend_data=trend_data, counselor_performance=counselor_performance, operator_performance=operator_performance, department_performance=department_performance)
 
 @app.route('/export')
