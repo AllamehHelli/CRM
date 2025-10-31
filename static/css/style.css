@@ -9,17 +9,22 @@ body {
     border: 1px solid #dee2e6;
 }
 
-/* رفع مشکل چسبیدگی دکمه‌ها */
-.input-group > .btn {
-    margin-right: -1px; /* اصلاح جزئی برای بوت‌استرپ راست‌چین */
+/* --- اصلاح مشکل ظاهری دکمه‌های چسبیده در حالت RTL --- */
+
+/* حذف گردی گوشه چپ و اضافه کردن گردی به گوشه راست برای فیلد ورودی */
+.input-group:not(.has-validation) > :not(:last-child):not(.dropdown-toggle):not(.dropdown-menu), .input-group:not(.has-validation) > .dropdown-toggle:nth-last-child(n+3) {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-top-right-radius: var(--bs-border-radius);
+    border-bottom-right-radius: var(--bs-border-radius);
 }
 
-.btn-group .btn {
-    margin-left: 4px; /* ایجاد فاصله بین دکمه‌های کنار هم */
-}
-.btn-group form {
-    display: inline-block;
-}
-.btn-group form .btn {
-    margin-left: 0;
+/* حذف گردی گوشه راست و اضافه کردن گردی به گوشه چپ برای دکمه */
+.input-group > :not(:first-child) {
+    margin-left: -1px;
+    margin-right: 0; /* ریست کردن مارجین راست */
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    border-top-left-radius: var(--bs-border-radius);
+    border-bottom-left-radius: var(--bs-border-radius);
 }
