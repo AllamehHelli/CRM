@@ -10,6 +10,7 @@ import pytz
 import pandas as pd
 from io import BytesIO, StringIO
 from sqlalchemy import func, case, or_
+# --- اصلاح مهم در این خط ---
 from google import genai as google_genai
 
 app = Flask(__name__)
@@ -21,7 +22,6 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# --- راه‌اندازی صحیح کلاینت جدید ---
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 if GEMINI_API_KEY:
     try:
@@ -31,7 +31,6 @@ if GEMINI_API_KEY:
         genai_client = None
 else:
     genai_client = None
-
 
 def to_shamsi(gregorian_dt):
     if gregorian_dt is None: return ""
@@ -312,7 +311,7 @@ def edit_ticket(ticket_id):
     if request.method == 'POST':
         ticket.title, ticket.department_id, ticket.description = request.form['title'], request.form['department_id'], request.form['description']
         db.session.commit()
-        return redirect(url_for('ticket_detail', ticket_id=ticket.id))
+        return redirect(url_for('ticket_detail', ticket_id=ticket_id))
     departments = Department.query.all()
     return render_template('edit_ticket.html', ticket=ticket, departments=departments)
 
