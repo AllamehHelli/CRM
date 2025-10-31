@@ -9,16 +9,80 @@ body {
     border: 1px solid #dee2e6;
 }
 
-/* --- اصلاح نهایی و صحیح برای دکمه‌های چسبیده در حالت RTL --- */
-
-/* به بوت‌استرپ می‌گوییم که اولین عنصر در گروه (که در RTL دکمه است) گوشه‌های گرد راست نداشته باشد */
 .input-group > :not(:last-child) {
     border-top-right-radius: 0;
     border-bottom-right-radius: 0;
 }
 
-/* به بوت‌استرپ می‌گوییم که آخرین عنصر در گروه (که در RTL فیلد ورودی است) گوشه‌های گرد چپ نداشته باشد */
 .input-group > :not(:first-child) {
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
+}
+
+/* --- استایل‌های جدید برای بخش گفتگو --- */
+
+.chat-wrapper {
+    max-height: 450px;
+    overflow-y: auto;
+    padding: 1rem;
+}
+
+.chat-message {
+    display: flex;
+    margin-bottom: 1rem;
+}
+
+.chat-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #6c757d;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.chat-bubble {
+    padding: 0.75rem 1rem;
+    border-radius: 1rem;
+    max-width: 80%;
+}
+
+.chat-meta {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+/* پیام‌های ورودی (از طرف دیگران) */
+.message-in {
+    justify-content: flex-start;
+}
+
+.message-in .chat-avatar {
+    margin-left: 10px;
+}
+
+.message-in .chat-bubble {
+    background-color: #e9ecef;
+    border-top-right-radius: 0.25rem;
+}
+
+/* پیام‌های خروجی (از طرف کاربر فعلی) */
+.message-out {
+    justify-content: flex-end;
+}
+
+.message-out .chat-avatar {
+    margin-right: 10px;
+    background-color: #0d6efd;
+}
+
+.message-out .chat-bubble {
+    background-color: #cce5ff;
+    border-top-left-radius: 0.25rem;
+    text-align: right; /* متن پیام‌های خودمان را هم راست‌چین می‌کنیم */
 }
