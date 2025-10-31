@@ -107,13 +107,17 @@ class Comment(db.Model):
 
 def generate_ai_summary(all_tickets_data):
     if not genai_client or not all_tickets_data:
-        return "خلاصه در دسترس نیست."
+        return "" # یک رشته خالی برمی‌گردانیم
     try:
         data_string = ""
         for dept_name, descriptions in all_tickets_data.items():
-            data_string += f"\n**Data for '{dept_name}' department:**\n"
-            for desc in descriptions:
-                data_string += f"- {desc}\n"
+            if descriptions:
+                data_string += f"\n**Data for '{dept_name}' department:**\n"
+                for desc in descriptions:
+                    data_string += f"- {desc}\n"
+
+        if not data_string: # اگر هیچ تیکتی برای هیچ بخشی وجود نداشت
+            return ""
 
         prompt = f"""شما یک تحلیلگر متخصص CRM هستید. وظیفه شما تحلیل تیکت‌های اخیر از چندین بخش و ارائه یک گزارش خلاصه و ساختاریافته برای مدیر است. برای هر بخش، یک پاراگراف منسجم بنویسید که موضوعات تکراری و مشکلات رایج را شناسایی کند. خروجی نهایی باید به زبان فارسی و دقیقاً با فرمت Markdown زیر باشد:
 
@@ -190,7 +194,8 @@ def create():
     student = None
     if student_id: student = Student.query.get(student_id)
     if not student:
-        national_id, student_mobile = request.form.get('national_id'), request.form.get('student_mobile')
+        national_id = request.form.get('national_id')
+        student_mobile = request.form.get('student_mobile')
         if national_id: student = Student.query.filter_by(national_id=national_id).first()
         if not student and student_mobile: student = Student.query.filter_by(student_mobile=student_mobile).first()
     if student:
@@ -225,8 +230,8 @@ def reports():
     all_tickets_for_ai = {}
     all_departments = Department.query.all()
     for dept in all_departments:
-        recent_tickets = Ticket.query.filter_by(department_id=dept.id).order_by(Ticket.created_at.desc()).limit(10).all()
-        descriptions = [t.description for t in recent_tickets]
+        recent_tickets_in_dept = base_query.filter(Ticket.department_id == dept.id).order_by(Ticket.created_at.desc()).limit(10).all()
+        descriptions = [t.description for t in recent_tickets_in_dept]
         if descriptions:
             all_tickets_for_ai[dept.name] = descriptions
     
@@ -243,7 +248,7 @@ def reports():
     counselor_performance = db.session.query(User.first_name, User.last_name, func.count(Ticket.id)).join(Ticket, User.id == Ticket.creator_id).filter(User.role == 'counselor', Ticket.created_at.between(start_date, end_date)).group_by(User.id).all()
     department_performance = db.session.query(Department.name, func.count(Ticket.id).label('total'), func.sum(case((Ticket.status == 'Closed', 1), else_=0)).label('closed')).join(Ticket).filter(Ticket.created_at.between(start_date, end_date)).group_by(Department.name).all()
 
-    return render_template('reports.html', start_date=start_date_str, end_date=end_date_str, total_tickets=total_tickets, closed_tickets=closed_tickets, open_tickets=open_tickets, avg_resolution_days=avg_resolution_days, oldest_open_ticket_age=oldest_open_ticket_age, dept_chart_labels=dept_chart_labels, dept_chart_data=dept_chart_data, status_chart_labels=status_chart_labels, status_chart_data=status_chart_data, trend_labels=trend_labels, trend_data=trend_data, counselor_performance=counselor_performance, operator_performance=operator_performance, department_performance=department_performance, ai_summary=ai_summary)
+    return render_template('reports.html', start_date=start_date_str, end_date=end_date_str, total_tickets=total_tickets, closed_tickets=closed_tickets, open_tickets=open_tickets, avg_resolution_days=avg_resolution_days, oldest_open_ticket_age=oldest_open_ticket_age, dept_chart_labels=dept_chart_labels, dept_chart_data=dept_chart_data, status_chart_labels=status_chart_labels, status_chart_data=status_chart_data, trend_labels=trend_labels, trend_data=trend_data, counselor_performance=counselor_performance, operator_performance=operator_performance, department_performance=department_performance, ai_summary=ai_summary, all_departments=all_departments)
 
 @app.route('/export')
 @login_required
