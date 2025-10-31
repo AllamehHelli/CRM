@@ -126,7 +126,7 @@ def tickets_list():
         tickets = query.order_by(Ticket.created_at.desc()).all()
     elif current_user.role == 'operator':
         tickets = query.filter_by(department_id=current_user.department_id).order_by(Ticket.created_at.desc()).all()
-    else:
+    else: # counselor
         tickets = query.filter_by(creator_id=current_user.id).order_by(Ticket.created_at.desc()).all()
     departments = Department.query.all()
     return render_template('tickets_list.html', tickets=tickets, departments=departments, creators=creators)
@@ -148,7 +148,8 @@ def create():
     student = None
     if student_id: student = Student.query.get(student_id)
     if not student:
-        national_id, student_mobile = request.form.get('national_id'), request.form.get('student_mobile')
+        national_id = request.form.get('national_id')
+        student_mobile = request.form.get('student_mobile')
         if national_id: student = Student.query.filter_by(national_id=national_id).first()
         if not student and student_mobile: student = Student.query.filter_by(student_mobile=student_mobile).first()
     if student:
@@ -161,7 +162,7 @@ def create():
     db.session.add(new_ticket)
     db.session.commit()
     return redirect(url_for('index'))
-    
+
 @app.route('/reports')
 @login_required
 @admin_required
@@ -177,13 +178,24 @@ def reports():
     total_resolution_time = sum([(t.updated_at - t.created_at).total_seconds() for t in closed_tickets_with_time], 0)
     avg_resolution_seconds = total_resolution_time / len(closed_tickets_with_time) if closed_tickets_with_time else 0
     avg_resolution_days = round(avg_resolution_seconds / (24 * 3600), 1)
+    
+    oldest_open_ticket = Ticket.query.filter(Ticket.status != 'Closed').order_by(Ticket.created_at.asc()).first()
+    oldest_open_ticket_age = (datetime.now(pytz.utc) - oldest_open_ticket.created_at).days if oldest_open_ticket else 0
+    
     tickets_by_dept = db.session.query(Department.name, func.count(Ticket.id)).join(Ticket).filter(Ticket.created_at.between(start_date, end_date)).group_by(Department.name).all()
     dept_chart_labels, dept_chart_data = [d[0] for d in tickets_by_dept], [d[1] for d in tickets_by_dept]
     tickets_by_status = db.session.query(Ticket.status, func.count(Ticket.id)).filter(Ticket.created_at.between(start_date, end_date)).group_by(Ticket.status).all()
     status_chart_labels, status_chart_data = [get_status_display(s[0])[0] for s in tickets_by_status], [s[1] for s in tickets_by_status]
+    
+    daily_trend_query = db.session.query(func.date(Ticket.created_at), func.count(Ticket.id)).filter(Ticket.created_at.between(start_date, end_date)).group_by(func.date(Ticket.created_at)).order_by(func.date(Ticket.created_at)).all()
+    trend_labels = [to_shamsi(d[0]).split(' - ')[0] for d in daily_trend_query]
+    trend_data = [d[1] for d in daily_trend_query]
+    
+    operator_performance = db.session.query(User.first_name, User.last_name, Department.name, func.count(Ticket.id).label('total'), func.sum(case((Ticket.status == 'Closed', 1), else_=0)).label('closed')).join(Ticket, Department.id == Ticket.department_id).join(User, User.department_id == Department.id).filter(User.role == 'operator', Ticket.created_at.between(start_date, end_date)).group_by(User.id, Department.name).all()
     counselor_performance = db.session.query(User.first_name, User.last_name, func.count(Ticket.id)).join(Ticket, User.id == Ticket.creator_id).filter(User.role == 'counselor', Ticket.created_at.between(start_date, end_date)).group_by(User.id).all()
     department_performance = db.session.query(Department.name, func.count(Ticket.id).label('total'), func.sum(case((Ticket.status == 'Closed', 1), else_=0)).label('closed')).join(Ticket).filter(Ticket.created_at.between(start_date, end_date)).group_by(Department.name).all()
-    return render_template('reports.html', start_date=start_date_str, end_date=end_date_str, total_tickets=total_tickets, closed_tickets=closed_tickets, open_tickets=open_tickets, avg_resolution_days=avg_resolution_days, dept_chart_labels=dept_chart_labels, dept_chart_data=dept_chart_data, status_chart_labels=status_chart_labels, status_chart_data=status_chart_data, counselor_performance=counselor_performance, department_performance=department_performance)
+
+    return render_template('reports.html', start_date=start_date_str, end_date=end_date_str, total_tickets=total_tickets, closed_tickets=closed_tickets, open_tickets=open_tickets, avg_resolution_days=avg_resolution_days, oldest_open_ticket_age=oldest_open_ticket_age, dept_chart_labels=dept_chart_labels, dept_chart_data=dept_chart_data, status_chart_labels=status_chart_labels, status_chart_data=status_chart_data, trend_labels=trend_labels, trend_data=trend_data, counselor_performance=counselor_performance, operator_performance=operator_performance, department_performance=department_performance)
 
 @app.route('/export')
 @login_required
@@ -368,18 +380,18 @@ def upload_students():
     if file and file.filename.endswith('.csv'):
         try:
             stream = StringIO(file.stream.read().decode("UTF8"), newline=None)
-            df = pd.read_csv(stream, dtype=str)
+            df = pd.read_csv(stream, dtype=str).fillna('')
             updated_count, added_count = 0, 0
             for index, row in df.iterrows():
                 student = None
-                if 'helli_code' in row and pd.notna(row['helli_code']): student = Student.query.filter_by(helli_code=str(row['helli_code'])).first()
-                if not student and 'national_id' in row and pd.notna(row['national_id']): student = Student.query.filter_by(national_id=str(row['national_id'])).first()
-                if not student and 'student_mobile' in row and pd.notna(row['student_mobile']): student = Student.query.filter_by(student_mobile=str(row['student_mobile'])).first()
+                if 'helli_code' in row and row['helli_code']: student = Student.query.filter_by(helli_code=row['helli_code']).first()
+                if not student and 'national_id' in row and row['national_id']: student = Student.query.filter_by(national_id=row['national_id']).first()
+                if not student and 'student_mobile' in row and row['student_mobile']: student = Student.query.filter_by(student_mobile=row['student_mobile']).first()
                 if student:
-                    student.national_id, student.first_name, student.last_name, student.gender, student.grade, student.province, student.student_mobile, student.parent_mobile, student.emergency_mobile = str(row.get('national_id')), row.get('first_name'), row.get('last_name'), row.get('gender'), row.get('grade'), row.get('province'), str(row.get('student_mobile')), str(row.get('parent_mobile')), str(row.get('emergency_mobile'))
+                    student.national_id, student.first_name, student.last_name, student.gender, student.grade, student.province, student.student_mobile, student.parent_mobile, student.emergency_mobile = row.get('national_id'), row.get('first_name'), row.get('last_name'), row.get('gender'), row.get('grade'), row.get('province'), row.get('student_mobile'), row.get('parent_mobile'), row.get('emergency_mobile')
                     updated_count += 1
                 else:
-                    new_student = Student(helli_code=str(row.get('helli_code')) if pd.notna(row.get('helli_code')) else None, national_id=str(row.get('national_id')) if pd.notna(row.get('national_id')) else None, first_name=row.get('first_name'), last_name=row.get('last_name'), gender=row.get('gender'), grade=row.get('grade'), province=row.get('province'), student_mobile=str(row.get('student_mobile')) if pd.notna(row.get('student_mobile')) else None, parent_mobile=str(row.get('parent_mobile')) if pd.notna(row.get('parent_mobile')) else None, emergency_mobile=str(row.get('emergency_mobile')) if pd.notna(row.get('emergency_mobile')) else None)
+                    new_student = Student(helli_code=row.get('helli_code'), national_id=row.get('national_id'), first_name=row.get('first_name'), last_name=row.get('last_name'), gender=row.get('gender'), grade=row.get('grade'), province=row.get('province'), student_mobile=row.get('student_mobile'), parent_mobile=row.get('parent_mobile'), emergency_mobile=row.get('emergency_mobile'))
                     db.session.add(new_student)
                     added_count += 1
             db.session.commit()
@@ -390,14 +402,12 @@ def upload_students():
         return redirect(url_for('manage_students'))
     flash('فرمت فایل باید CSV باشد.', 'warning')
     return redirect(url_for('manage_students'))
-
 def create_default_departments():
     default_deps = ['کتابخوان', 'بازارهوشمند', 'آموزش', 'آزمون‌ها', 'عمومی']
     for dep_name in default_deps:
         if not Department.query.filter_by(name=dep_name).first():
             db.session.add(Department(name=dep_name))
     db.session.commit()
-
 with app.app_context():
     db.create_all()
     create_default_departments()
