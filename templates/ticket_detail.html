@@ -25,18 +25,52 @@
                 <p style="white-space: pre-wrap;">{{ ticket.description }}</p>
             </div>
         </div>
+
         <div class="card shadow-sm">
             <div class="card-header"><h5 class="my-0">گفتگو و یادداشت‌های داخلی</h5></div>
-            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
-                {% for comment in ticket.comments|sort(attribute='created_at') %}<div class="d-flex flex-row justify-content-start mb-3"><div><p class="small p-2 ms-3 mb-1 rounded-3" style="background-color: #f5f6f7;">{{ comment.content }}</p><p class="small ms-3 mb-3 rounded-3 text-muted">{{ comment.author.first_name }} - {{ comment.created_at | shamsi }}</p></div></div>{% else %}<p class="text-center text-muted">هنوز یادداشتی ثبت نشده است.</p>{% endfor %}
+            <div class="card-body chat-wrapper">
+                {% for comment in ticket.comments|sort(attribute='created_at') %}
+                    {% if comment.author == current_user %}
+                        <!-- پیام‌های خروجی (کاربر فعلی) -->
+                        <div class="chat-message message-out">
+                            <div class="d-flex flex-column align-items-end">
+                                <div class="chat-bubble">{{ comment.content }}</div>
+                                <div class="chat-meta">{{ comment.created_at | shamsi }}</div>
+                            </div>
+                            <div class="chat-avatar">
+                                {{ current_user.first_name[0] }}
+                            </div>
+                        </div>
+                    {% else %}
+                        <!-- پیام‌های ورودی (دیگران) -->
+                        <div class="chat-message message-in">
+                            <div class="chat-avatar">
+                                {{ comment.author.first_name[0] }}
+                            </div>
+                            <div class="d-flex flex-column align-items-start">
+                                <div class="chat-bubble">{{ comment.content }}</div>
+                                <div class="chat-meta">{{ comment.author.first_name }} - {{ comment.created_at | shamsi }}</div>
+                            </div>
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <p class="text-center text-muted">هنوز یادداشتی ثبت نشده است.</p>
+                {% endfor %}
             </div>
+
             {% if current_user.role == 'admin' or (current_user.role == 'operator' and current_user.department_id == ticket.department_id) %}
             <div class="card-footer">
-                <form action="{{ url_for('add_comment', ticket_id=ticket.id) }}" method="POST"><div class="input-group"><input type="text" name="content" class="form-control" placeholder="یادداشت خود را بنویسید..." required><button class="btn btn-primary" type="submit">ارسال</button></div></form>
+                <form action="{{ url_for('add_comment', ticket_id=ticket.id) }}" method="POST">
+                    <div class="input-group">
+                        <input type="text" name="content" class="form-control" placeholder="یادداشت خود را بنویسید..." required autocomplete="off">
+                        <button class="btn btn-primary" type="submit">ارسال</button>
+                    </div>
+                </form>
             </div>
             {% endif %}
         </div>
     </div>
+    
     <div class="col-md-4">
         <div class="card shadow-sm mb-4">
             <div class="card-header"><h5 class="my-0">جزئیات دانش‌آموز</h5></div>
